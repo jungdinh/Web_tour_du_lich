@@ -1,0 +1,10 @@
+scrapy==2.11.1
+beautifulsoup4==4.12.3
+lxml==5.2.2
+requests==2.32.3
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+langdetect==1.0.9
+langcodes==3.4.0
+fake-useragent==1.5.1
+tenacity==8.3.0

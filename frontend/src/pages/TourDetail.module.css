@@ -1,0 +1,242 @@
+.content {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.loading,
+.notFound {
+  text-align: center;
+  padding: var(--space-16);
+  color: var(--color-text-secondary);
+}
+
+.main {
+  min-width: 0;
+}
+
+.image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-8);
+}
+
+.header {
+  margin-bottom: var(--space-8);
+}
+
+.destination {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent);
+  margin-bottom: var(--space-2);
+}
+
+.name {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: var(--space-3);
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9375rem;
+}
+
+.stars {
+  color: #f59e0b;
+}
+
+.reviewCount {
+  color: var(--color-text-secondary);
+}
+
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.description {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.tagWeight {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.noReviews {
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--space-8);
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.review {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.reviewerName {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.reviewRating {
+  color: #f59e0b;
+  font-size: 0.875rem;
+}
+
+.reviewContent {
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* Sidebar */
+.sidebar {
+  position: sticky;
+  top: calc(72px + var(--space-8));
+}
+
+.bookingCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.price {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.priceLabel {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.priceValue {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.priceUnit {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.info {
+  margin-bottom: var(--space-6);
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  font-size: 0.9375rem;
+}
+
+.infoRow span:first-child {
+  color: var(--color-text-secondary);
+}
+
+.bookBtn {
+  width: 100%;
+  padding: var(--space-4);
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  transition: background 0.15s;
+}
+
+.bookBtn:hover {
+  background: var(--color-accent-hover);
+}
+
+.saveBtn {
+  width: 100%;
+  padding: var(--space-3);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s;
+}
+
+.saveBtn:hover {
+  border-color: var(--color-accent);
+}
+
+.sourceLink {
+  display: block;
+  text-align: center;
+  margin-top: var(--space-4);
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.sourceLink:hover {
+  color: var(--color-accent);
+}
