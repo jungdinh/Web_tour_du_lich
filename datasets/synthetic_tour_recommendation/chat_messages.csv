@@ -1,0 +1,81 @@
+﻿id,session_id,role,content,created_at
+1,1,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-07-07 08:01:00
+2,1,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-07-07 08:02:00
+3,2,user,Tour đầu có gì hay?,2026-06-01 08:03:00
+4,2,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-06-01 08:04:00
+5,3,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-30 08:05:00
+6,3,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-30 08:06:00
+7,4,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-07 08:07:00
+8,4,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-07 08:00:00
+9,5,user,Tour đầu có gì hay?,2026-07-31 08:01:00
+10,5,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-07-31 08:02:00
+11,6,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-20 08:03:00
+12,6,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-20 08:04:00
+13,7,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-07-21 08:05:00
+14,7,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-07-21 08:06:00
+15,8,user,Tour đầu có gì hay?,2026-07-26 08:07:00
+16,8,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-07-26 08:00:00
+17,9,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-08-04 08:01:00
+18,9,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-08-04 08:02:00
+19,10,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-08-06 08:03:00
+20,10,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-08-06 08:04:00
+21,11,user,Tour đầu có gì hay?,2026-08-06 08:05:00
+22,11,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-08-06 08:06:00
+23,12,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-07-05 08:07:00
+24,12,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-07-05 08:00:00
+25,13,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-08-09 08:01:00
+26,13,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-08-09 08:02:00
+27,14,user,Tour đầu có gì hay?,2026-07-23 08:03:00
+28,14,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-07-23 08:04:00
+29,15,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-14 08:05:00
+30,15,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-14 08:06:00
+31,16,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-08-10 08:07:00
+32,16,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-08-10 08:00:00
+33,17,user,Tour đầu có gì hay?,2026-07-03 08:01:00
+34,17,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-07-03 08:02:00
+35,18,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-19 08:03:00
+36,18,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-19 08:04:00
+37,19,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-21 08:05:00
+38,19,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-21 08:06:00
+39,20,user,Tour đầu có gì hay?,2026-06-26 08:07:00
+40,20,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-06-26 08:00:00
+41,21,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-03 08:01:00
+42,21,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-03 08:02:00
+43,22,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-07-15 08:03:00
+44,22,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-07-15 08:04:00
+45,23,user,Tour đầu có gì hay?,2026-05-24 08:05:00
+46,23,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-05-24 08:06:00
+47,24,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-07-29 08:07:00
+48,24,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-07-29 08:00:00
+49,25,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-29 08:01:00
+50,25,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-29 08:02:00
+51,26,user,Tour đầu có gì hay?,2026-08-09 08:03:00
+52,26,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-08-09 08:04:00
+53,27,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-10 08:05:00
+54,27,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-10 08:06:00
+55,28,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-05 08:07:00
+56,28,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-05 08:00:00
+57,29,user,Tour đầu có gì hay?,2026-05-16 08:01:00
+58,29,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-05-16 08:02:00
+59,30,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-08-04 08:03:00
+60,30,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-08-04 08:04:00
+61,31,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-07-17 08:05:00
+62,31,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-07-17 08:06:00
+63,32,user,Tour đầu có gì hay?,2026-08-01 08:07:00
+64,32,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-08-01 08:00:00
+65,33,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-16 08:01:00
+66,33,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-16 08:02:00
+67,34,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-08-12 08:03:00
+68,34,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-08-12 08:04:00
+69,35,user,Tour đầu có gì hay?,2026-05-17 08:05:00
+70,35,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-05-17 08:06:00
+71,36,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-11 08:07:00
+72,36,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-11 08:00:00
+73,37,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-30 08:01:00
+74,37,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-30 08:02:00
+75,38,user,Tour đầu có gì hay?,2026-06-23 08:03:00
+76,38,assistant,"Tour đầu nổi bật ở điểm đến, mức giá và nhóm trải nghiệm phù hợp với sở thích của bạn.",2026-06-23 08:04:00
+77,39,user,"Tôi muốn đi Đà Lạt 3 ngày, ngân sách 5 triệu",2026-06-13 08:05:00
+78,39,assistant,Mình sẽ tìm các tour Đà Lạt gần ngân sách và thời lượng của bạn.,2026-06-13 08:06:00
+79,40,user,"Gia đình mình muốn đi biển, khoảng 4 ngày",2026-06-20 08:07:00
+80,40,assistant,Bạn cho mình biết thêm ngân sách dự kiến để lọc tour phù hợp hơn nhé.,2026-06-20 08:00:00

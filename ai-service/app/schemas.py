@@ -24,10 +24,18 @@ class RecommendationResponse(BaseModel):
     is_cold_start: bool = False
 
 
+class UpdateProfileRequest(BaseModel):
+    user_id: int
+    action_type: str
+    tour_id: int
+
 class ChatRequest(BaseModel):
     user_id: int
     message: str
     session_id: Optional[int] = None
+    current_slots: Optional[Dict] = None  # slots từ session trước (để merge)
+    last_recommendations: Optional[List[Dict]] = None
+    recent_messages: Optional[List[Dict]] = None
 
 
 class SlotData(BaseModel):
@@ -36,8 +44,20 @@ class SlotData(BaseModel):
     budget_min: Optional[int] = None
     budget_max: Optional[int] = None
     duration: Optional[int] = None  # in days
+    duration_min: Optional[int] = None
+    duration_max: Optional[int] = None
     preferences: Optional[List[str]] = None  # beach, adventure, etc.
     season: Optional[str] = None
+
+    class Config:
+        extra = "ignore"
+
+
+class DestinationSuggestion(BaseModel):
+    destination: str
+    tour_count: int
+    avg_rating: Optional[float] = None
+    sample_tour_names: List[str] = []
 
 
 class ChatResponse(BaseModel):
@@ -45,4 +65,5 @@ class ChatResponse(BaseModel):
     slot_data: SlotData
     is_complete: bool  # True if enough info to recommend
     recommendations: Optional[List[Dict]] = None
+    destination_suggestions: Optional[List[DestinationSuggestion]] = None
     session_id: int

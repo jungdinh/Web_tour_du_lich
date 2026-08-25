@@ -4,14 +4,14 @@
 
 **Đề tài tạm thời**
 
-> Xây dựng hệ thống gợi ý tour du lịch cá nhân hóa ứng dụng AI dựa trên dữ liệu thu thập từ các website du lịch.
+> Xây dựng hệ thống gợi ý tour du lịch cá nhân hóa ứng dụng AI dựa trên dữ liệu thu thập từ BestPrice.
 
 Trọng tâm của đồ án **không phải website**, mà là **Recommendation Engine**. Website là nơi thể hiện khả năng của hệ thống gợi ý.
 
 **Phạm vi dữ liệu:**
 
 - Đối tượng người dùng: Người Việt Nam.
-- Tour du lịch: Nội địa Việt Nam.
+- Tour du lịch: Trong nước và quốc tế (dành cho người Việt Nam đi du lịch).
 - Tiền tệ: VND.
 - Ngôn ngữ: Tiếng Việt.
 - Review: Chỉ thu thập và xử lý review tiếng Việt (xác định theo **ngôn ngữ chủ đạo** của review — review có xen lẫn tên riêng tiếng Anh như tên người, tên địa điểm vẫn được tính là review tiếng Việt).
@@ -192,11 +192,10 @@ Cosine(User, Tour B) = 0.35  → Không phù hợp ❌
 
 ### Nguồn crawl
 
-- **Klook** (klook.com/vi) — Nhiều tour activity, review tiếng Việt.
-- **Traveloka** (traveloka.com/vi-vn) — Tour du lịch trong nước phổ biến.
+- **BestPrice** (bestprice.vn) — Nền tảng tour du lịch trong nước và quốc tế, nhiều tour, review tiếng Việt.
 
 ### Tuyên bố Trách nhiệm Dữ liệu (Dành cho Hội đồng)
-Việc crawl dữ liệu từ các nền tảng OTA thường vi phạm Điều khoản Dịch vụ (Terms of Service) của họ. Do đó, đồ án phải được cam kết rõ ràng:
+Việc crawl dữ liệu từ BestPrice có thể vi phạm Điều khoản Dịch vụ (Terms of Service) của họ. Do đó, đồ án phải được cam kết rõ ràng:
 - **Proof of Concept (PoC):** Hệ thống chỉ phục vụ mục đích **Nghiên cứu / Học thuật / Đào tạo (Educational Purpose)**.
 - **Phi thương mại & Ẩn danh:** Dữ liệu review người dùng thu thập được sẽ ẩn danh hóa triệt để, dự án cam kết tuyệt đối không tái phân phối hoặc thương mại hóa.
 *(Ghi chú: Giới học thuật đánh giá cực lớn các sinh viên có nhận thức về Đạo đức AI & Bản quyền Dữ liệu)*
@@ -246,7 +245,7 @@ Không để AI tự quyết định điểm. Thay vào đó, AI đọc review v
 
 ### Tag Taxonomy — Bộ tag chuẩn
 
-Định nghĩa trước **15 tag cố định**. LLM chỉ được map review vào các tag này, không tự tạo tag mới.
+Định nghĩa trước **21 tag cố định** (mở rộng từ 15 tag ban đầu trong quá trình phát triển). LLM chỉ được map review vào các tag này, không tự tạo tag mới.
 
 | Tag | Ý nghĩa | Ví dụ review |
 |-----|---------|-------------|
@@ -256,7 +255,7 @@ Không để AI tự quyết định điểm. Thay vào đó, AI đọc review v
 | `beach` | Biển | "Biển đẹp, nước trong" |
 | `nature` | Thiên nhiên | "Cảnh rất đẹp, nhiều cây xanh" |
 | `food` | Ẩm thực | "Đồ ăn ngon, đặc sản địa phương" |
-| `culture` | Văn hóa, lịch sử | "Tham quan di tích lịch sử" |
+| `culture` | Văn hóa chung | "Tham quan di tích, làng nghề" |
 | `relax` | Nghỉ dưỡng | "Resort thoải mái, nghỉ ngơi" |
 | `budget` | Giá rẻ, tiết kiệm | "Giá hợp lý cho sinh viên" |
 | `luxury` | Sang trọng | "Khách sạn 5 sao, dịch vụ tốt" |
@@ -265,6 +264,12 @@ Không để AI tự quyết định điểm. Thay vào đó, AI đọc review v
 | `shopping` | Mua sắm | "Chợ đêm nhiều đồ hay" |
 | `mountain` | Núi, cao nguyên | "View núi rất đẹp" |
 | `city` | Thành phố | "Thành phố sôi động, nhiều quán" |
+| `history` | Lịch sử, di tích | "Tham quan chiến trường xưa, triều đại" |
+| `festival` | Lễ hội đặc sắc | "Lễ hội té nước, đua ghe" |
+| `wildlife` | Động vật hoang dã | "Vườn quốc gia, ngắm voọc" |
+| `cruise` | Du thuyền | "Đi du thuyền Hạ Long 2 ngày đêm" |
+| `nightlife` | Phố đêm, bar, club | "Phố Tây Bùi Viện nhộn nhịp" |
+| `water_sports` | Lặn, kayak, surfing | "Lặn san hô ở Nha Trang" |
 
 ### Quy trình sinh tag
 
@@ -292,6 +297,7 @@ Tour có quá ít review sẽ cho trọng số **không đáng tin**. Quy địn
 
 - Tour có **≥ 5 review** → Tính trọng số bình thường.
 - Tour có **< 5 review** → Dùng giá trị mặc định (trọng số = 0.0 cho tất cả tag, chỉ dùng thuộc tính cơ bản như destination, price, duration để gợi ý).
+- **Tag Augmentation:** Với tour có ít review, hệ thống sẽ tự động infer tags từ description bằng LLM hoặc rule-based fallback.
 
 ### Cách tính trọng số
 
@@ -415,7 +421,7 @@ User Profile ngày càng chính xác
 ## 14. Quy trình dữ liệu
 
 ```text
-Crawler (Klook, Traveloka)
+Crawler (BestPrice)
     │
     ▼
 Dataset thô
@@ -461,7 +467,7 @@ Website
 | **Frontend** | React (Vite) | Giao diện người dùng |
 | **Database** | PostgreSQL | Lưu trữ tour, user, tag, recommendation |
 | **Cache** | Redis *(tùy chọn)* | Cache kết quả gợi ý, tăng tốc — chỉ cần nếu hệ thống có nhiều request |
-| **Crawler** | Python (Scrapy / BeautifulSoup) | Thu thập dữ liệu từ Klook, Traveloka |
+| **Crawler** | Python (Playwright + BeautifulSoup) | Thu thập dữ liệu từ BestPrice |
 | **LLM** | Gemini API | Phân tích review, sinh tag, hỏi ngược, giải thích |
 | **ML Library** | Scikit-learn / NumPy | Cosine Similarity, xử lý vector |
 
@@ -539,8 +545,12 @@ Frontend tự động ghi nhận và gửi về Web Service:
 | duration | INT | Số ngày |
 | description | TEXT | Mô tả |
 | avg_rating | FLOAT | Điểm trung bình |
-| source | VARCHAR | Nguồn crawl (Klook/Traveloka) |
+| review_count | INT | Số lượng review |
+| source | VARCHAR | Nguồn crawl (BestPrice) |
 | source_url | VARCHAR | Link gốc |
+| season | VARCHAR | Mùa phù hợp (spring/summer/autumn/winter/all) |
+| created_at | TIMESTAMP | Thời tạo |
+| updated_at | TIMESTAMP | Thời cập nhật |
 
 ### Bảng `reviews`
 
@@ -551,6 +561,8 @@ Frontend tự động ghi nhận và gửi về Web Service:
 | content | TEXT | Nội dung review |
 | language | VARCHAR | Ngôn ngữ review (vi, en, ...) |
 | rating | FLOAT | Điểm đánh giá |
+| reviewer_name | VARCHAR | Tên người review (ẩn danh) |
+| created_at | TIMESTAMP | Thời gian |
 
 ### Bảng `tour_tags`
 
@@ -584,14 +596,24 @@ Frontend tự động ghi nhận và gửi về Web Service:
 | user_id | INT (FK) | User |
 | tour_id | INT (FK) | Tour |
 | action_type | VARCHAR | Loại hành vi (click, view, save, search) |
+| search_query | VARCHAR | Từ khóa tìm kiếm (cho action_type=search) |
 | created_at | TIMESTAMP | Thời gian |
+
+### Bảng `favorites`
+
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| id | INT (PK) | ID |
+| user_id | INT (FK) | User |
+| tour_id | INT (FK) | Tour |
+| created_at | TIMESTAMP | Thời gian thêm yêu thích |
 
 ---
 
 ## 18. Những điểm mạnh của đồ án
 
 - Có crawler tự thu thập dữ liệu.
-- Có dữ liệu riêng (Klook, Traveloka).
+- Có dữ liệu riêng (BestPrice).
 - Có Recommendation Engine (Content-Based Filtering + Cosine Similarity).
 - Có AI hỗ trợ (LLM phân tích review, sinh tag, hỏi ngược, giải thích).
 - Có cá nhân hóa (User Profile + Implicit Feedback).
@@ -609,8 +631,8 @@ Frontend tự động ghi nhận và gửi về Web Service:
 - AI dùng để phân tích review và sinh tag (theo Tag Taxonomy cố định).
 - Tag có trọng số (tính từ tần suất review).
 - Recommendation Engine quyết định kết quả, LLM chỉ giải thích.
-- Crawl dữ liệu từ Klook và Traveloka.
-- Phạm vi: Tour du lịch nội địa Việt Nam, tiền VND, tiếng Việt.
+- Crawl dữ liệu từ BestPrice.
+- Phạm vi: Tour du lịch trong nước và quốc tế (dành cho người Việt Nam), tiền VND, tiếng Việt.
 - Backend: Python (FastAPI) + Node.js (Express/NestJS).
 - Cold-Start: Tour phổ biến lần đầu → Implicit Feedback dần dần.
 
@@ -640,14 +662,14 @@ Frontend tự động ghi nhận và gửi về Web Service:
 
 ### Giai đoạn 1 — Khảo sát & Thiết kế
 
-- Khảo sát Klook, Traveloka (cấu trúc trang, dữ liệu có thể crawl).
+- Khảo sát BestPrice (cấu trúc trang, dữ liệu có thể crawl).
 - Thiết kế database (dựa trên Data Schema sơ bộ).
 - Thiết kế Tour Profile và User Profile.
 - Hoàn thiện Tag Taxonomy.
 
 ### Giai đoạn 2 — Crawler & Dữ liệu
 
-- Xây dựng crawler (Scrapy / BeautifulSoup).
+- Xây dựng crawler (Playwright + BeautifulSoup).
 - Thu thập dữ liệu tour + review.
 - Data Preprocessing (làm sạch, chuẩn hóa, loại trùng lặp).
 
@@ -686,130 +708,190 @@ Frontend tự động ghi nhận và gửi về Web Service:
 
 ## 23. Câu hỏi nghiên cứu cốt lõi
 
-> Làm thế nào để xây dựng một hệ thống gợi ý tour du lịch cá nhân hóa từ dữ liệu thu thập trên các website du lịch, kết hợp AI để hiểu nhu cầu người dùng và Recommendation Engine để đưa ra danh sách tour phù hợp?
+> Làm thế nào để xây dựng một hệ thống gợi ý tour du lịch cá nhân hóa từ dữ liệu thu thập trên BestPrice, kết hợp AI để hiểu nhu cầu người dùng và Recommendation Engine để đưa ra danh sách tour phù hợp?
 
 Đây sẽ là kim chỉ nam cho toàn bộ đồ án.
 
 ---
 
-## 24. Tiến độ thực hiện (Cập nhật: 2026-07-09)
+## 24. Tiến độ thực hiện (Cập nhật: 2026-07-10)
 
 ### Giai đoạn 1 — Khảo sát & Thiết kế ✅ HOÀN THÀNH
 
 - [x] Tạo cấu trúc thư mục dự án
 - [x] Tạo file `CLAUDE.md` để lưu context
 - [x] Tạo Database Schema (SQL migrations)
-- [x] Hoàn thiện Tag Taxonomy (15 tags cố định)
+- [x] Hoàn thiện Tag Taxonomy (21 tag cố định - mở rộng từ 15)
 - [x] Tạo file `.env.example` cho cấu hình
 - [x] Tạo README cho từng service
 - [x] Cấu hình AI Service (FastAPI) - Core engine
 - [x] Cấu hình Web Service (Node.js/Express) - API
-- [x] Cấu hình Crawler (Python/Scrapy) - Base structure
+- [x] Cấu hình Crawler (Python/Playwright + BeautifulSoup) - Base structure
 - [x] Cấu hình Frontend (React/Vite) - UI cơ bản
 
 **File đã tạo:**
 ```
 database/migrations/001_initial_schema.sql
+database/migrations/002_add_favorites.sql
 .env.example
 CLAUDE.md
+README.md
 
 ai-service/
 ├── requirements.txt
 ├── README.md
 ├── app/
-│   ├── config.py
-│   ├── schemas.py
-│   ├── main.py
-│   ├── engine/
-│   │   ├── tags.py
-│   │   ├── cosine.py
-│   │   └── recommendation.py
-│   └── llm/
-│       └── gemini.py
+│   ├── config.py, schemas.py, main.py
+│   ├── engine/ (tags.py, cosine.py, recommendation.py, engine_db.py)
+│   └── llm/ (gemini.py, slot_filling.py, tag_generator.py)
 
-web-service/
-├── package.json
-├── tsconfig.json
+web-be/
+├── package.json, tsconfig.json, tsconfig.build.json
 ├── src/
-│   ├── index.ts
-│   ├── db/index.ts
+│   ├── index.ts, db/index.ts
 │   ├── controllers/ (auth, tours, recommendations, actions, chat)
 │   ├── routes/ (auth, tours, recommendations, actions, chat)
 │   └── middlewares/ (error, rateLimit)
 
 crawler/
-├── requirements.txt
-├── settings.py
-├── spiders/
-│   ├── base_spider.py
-│   ├── klook_spider.py
-│   └── traveloka_spider.py
-├── preprocessing/
-│   ├── dedup.py
-│   ├── normalize.py
-│   └── filter.py
-└── utils/
-    └── language_detector.py
+├── requirements.txt, settings.py
+├── spiders/ (base_spider.py, bestprice_spider.py)
+├── preprocessing/ (dedup.py, normalize.py, filter.py)
+├── utils/ (language_detector.py)
+├── quick_seed.py              # Quick DB check & sample data
+└── scripts/
+    ├── generate_sample_data.py
+    ├── batch_generate_tags.py
+    └── run_crawler.py
 
-frontend/
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── index.html
+web-fe/
+├── package.json, tsconfig.json, vite.config.ts, index.html
 └── src/
-    ├── main.tsx
-    ├── App.tsx
-    ├── index.css
-    ├── types/index.ts
-    ├── api/index.ts
-    ├── stores/auth.ts
-    ├── components/
-    │   ├── Layout.tsx
-    │   └── TourCard.tsx
-    └── pages/
-        ├── Home.tsx
-        ├── Search.tsx
-        ├── TourDetail.tsx
-        ├── Chat.tsx
-        ├── Login.tsx
-        ├── Register.tsx
-        ├── Profile.tsx
-        └── Favorites.tsx
+    ├── main.tsx, App.tsx, index.css
+    ├── types/index.ts, api/index.ts, stores/auth.ts
+    ├── components/ (Layout, TourCard)
+    └── pages/ (Home, Search, TourDetail, Chat, Login, Register, Profile, Favorites)
 ```
 
-### Giai đoạn 2 — Crawler & Dữ liệu ⏳ TIẾP THEO
+### Giai đoạn 2 — Crawler & Dữ liệu ✅ HOÀN THÀNH
 
 - [x] Cấu trúc thư mục crawler
 - [x] Base spider class
-- [x] Klook spider
-- [x] Traveloka spider
+- [x] BestPrice spider
 - [x] Preprocessing: dedup, normalize, filter
 - [x] Language detector cho Vietnamese
-- [ ] Thu thập dữ liệu tour + review (chạy crawler)
-- [ ] Data Preprocessing thực tế
-- [ ] Lưu dữ liệu vào PostgreSQL
+- [x] Quick seed script (`quick_seed.py`)
+- [x] Script batch generate tags
+- [x] Setup script (setup.bat/setup.sh)
 
-### Giai đoạn 3 — AI & Tag 📋 CHƯA BẮT ĐẦU
+**Hướng dẫn chạy Giai đoạn 2:**
+```bash
+# 1. Start PostgreSQL
+# 2. psql -U postgres -d tour_recommendation -c "CREATE EXTENSION IF NOT EXISTS vector;"
+# 3. psql -U postgres -d tour_recommendation -f database/migrations/001_initial_schema.sql
+# 4. cd crawler && pip install -r requirements.txt && python quick_seed.py
+```
 
-- [ ] Tích hợp Gemini API
-- [ ] Test LLM phân tích review
-- [ ] Sinh tag theo Taxonomy
-- [ ] Tính trọng số tag cho Tour Profile
+### Giai đoạn 3 — AI & Tag ✅ HOÀN THÀNH
 
-### Giai đoạn 4 — Recommendation Engine 📋 CHƯA BẮT ĐẦU
+- [x] Tag Taxonomy (21 tag cố định - mở rộng từ 15)
+- [x] Tag Generator (LLM + Rule-based)
+- [x] Slot Filling Engine
+- [x] Batch generate tags script
+- [x] Gemini integration (với fallback mock)
+- [x] Recommendation Engine core
+- [x] User Profile Builder (Implicit Feedback)
+- [x] Cold Start Handler
 
-- [ ] Hoàn thiện Cosine Similarity Engine
-- [ ] Xây dựng User Profile từ Explicit + Implicit data
-- [ ] Xử lý Cold-Start
-- [ ] Test và tune kết quả gợi ý
+**File đã tạo/thêm:**
+```
+ai-service/
+├── app/llm/
+│   ├── gemini.py
+│   ├── slot_filling.py      # Slot Filling Engine mới
+│   └── tag_generator.py
+├── app/engine/
+│   ├── recommendation.py
+│   ├── engine_db.py         # DB-integrated engine mới
+│   └── cosine.py
+├── app/models/
+│   └── database.py          # SQLAlchemy models mới
+├── requirements.txt
+└── README.md
 
-### Giai đoạn 5 — Website 📋 CHƯA BẮT ĐẦU
+crawler/
+├── quick_seed.py            # Quick seed script mới
+└── scripts/
+    ├── generate_sample_data.py
+    └── batch_generate_tags.py
+```
 
-- [ ] Hoàn thiện Backend API (Node.js)
-- [ ] Hoàn thiện AI Service (Python FastAPI)
-- [ ] Hoàn thiện Frontend (React)
-- [ ] Tích hợp đầy đủ Engine + LLM
-- [ ] Dashboard quản lý (Admin)
+### Giai đoạn 4 — Recommendation Engine ✅ HOÀN THÀNH
+
+- [x] Cosine Similarity Engine với DB integration
+- [x] User Profile Builder từ Implicit Feedback
+- [x] Cold Start Handler
+- [x] Recommendation Engine hoàn chỉnh với database
+- [x] Tag augmentation cho tour thiếu reviews
+
+### Giai đoạn 5 — Website ✅ HOÀN THÀNH
+
+- [x] web-be (Node.js/Express)
+  - REST API cho tất cả endpoints
+  - JWT Authentication
+  - Rate limiting
+  - Caching (Node-cache)
+  - Error handling
+  - Favorites endpoints
+- [x] ai-service (Python/FastAPI)
+  - Recommendation Engine với DB integration
+  - LLM Integration
+  - Tag Generation
+  - Slot Filling
+  - Cold Start handling
+- [x] web-fe (React/Vite)
+  - Tất cả 8 pages hoàn chỉnh
+  - Authentication (Login/Register)
+  - Tour listing & search
+  - Chat với AI
+  - User profile & favorites
+- [x] Setup scripts (Windows/Linux)
+
+**Cấu trúc web-be:**
+```
+web-be/
+├── src/
+│   ├── index.ts              # Express app
+│   ├── db/index.ts           # PostgreSQL connection
+│   ├── controllers/
+│   │   ├── auth.ts           # Auth: register, login, profile
+│   │   ├── tours.ts          # Tour CRUD, search, popular
+│   │   ├── recommendations.ts # Gọi AI Service
+│   │   ├── actions.ts        # Log implicit feedback
+│   │   ├── chat.ts           # Chat với AI
+│   │   └── favorites.ts      # Bookmark tour
+│   ├── routes/               # Route definitions
+│   └── middlewares/          # Error, rate limit
+```
+
+**API Endpoints (web-be - port 3000):**
+| Endpoint | Method | Auth | Mô tả |
+|----------|--------|------|--------|
+| `/api/auth/register` | POST | ❌ | Đăng ký |
+| `/api/auth/login` | POST | ❌ | Đăng nhập |
+| `/api/auth/profile` | GET | ✅ | Thông tin user |
+| `/api/tours` | GET | ❌ | Danh sách tour |
+| `/api/tours/:id` | GET | ❌ | Chi tiết tour |
+| `/api/tours/:id/reviews` | GET | ❌ | Reviews |
+| `/api/tours/popular` | GET | ❌ | Tour phổ biến |
+| `/api/tours/search` | GET | ❌ | Tìm kiếm |
+| `/api/recommendations` | GET | ✅ | Gợi ý tour |
+| `/api/favorites` | GET | ✅ | Danh sách tour yêu thích |
+| `/api/favorites/:tourId` | POST | ✅ | Thêm/xóa tour yêu thích |
+| `/api/actions` | POST | ✅ | Log hành vi |
+| `/api/actions/history` | GET | ✅ | Lịch sử hành vi |
+| `/api/chat` | POST | ✅ | Chat với AI |
+| `/api/chat/history` | GET | ✅ | Lịch sử chat |
 
 ### Giai đoạn 6 — Đánh giá & Báo cáo 📋 CHƯA BẮT ĐẦU
 

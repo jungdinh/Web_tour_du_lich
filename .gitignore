@@ -1,0 +1,25 @@
+# Local environment files
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/.pytest_cache/
+
+# Local browser/test artifacts
+.tmp-chrome-codex/
+.tmp-chrome-dump/
+.tmp-chrome-dump2/
+
+# Local logs
+*.log
+
+# Generated local/test artifacts
+**/*.tsbuildinfo
+**/vite.config.js
+register_body.json
+register_resp.json

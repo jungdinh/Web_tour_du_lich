@@ -1,5 +1,8 @@
--- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS vector;
+-- pgvector extension is optional and used only if you want to use native
+-- vector types. The recommender relies on numpy/scikit-learn in the AI
+-- service, so we comment this out by default to avoid breaking
+-- installations that don't have pgvector installed.
+-- CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Table: tours
 CREATE TABLE tours (
@@ -85,6 +88,15 @@ CREATE TABLE chat_messages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table: favorites (User bookmarks/saved tours)
+CREATE TABLE favorites (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    tour_id INT REFERENCES tours(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tour_id)
+);
+
 -- Indexes for performance
 CREATE INDEX idx_tours_destination ON tours(destination);
 CREATE INDEX idx_tours_price ON tours(price);
@@ -93,8 +105,10 @@ CREATE INDEX idx_reviews_tour_id ON reviews(tour_id);
 CREATE INDEX idx_tour_tags_tour_id ON tour_tags(tour_id);
 CREATE INDEX idx_user_actions_user_created ON user_actions(user_id, created_at);
 CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
+CREATE INDEX idx_favorites_user_id ON favorites(user_id);
+CREATE INDEX idx_favorites_tour_id ON favorites(tour_id);
 
--- Tag Taxonomy (15 tags cố định)
+-- Tag Taxonomy (21 tags cố định - mở rộng từ 15 tags ban đầu)
 -- INSERT INTO tags (name, description) VALUES
 -- ('family', 'Phù hợp gia đình'),
 -- ('romantic', 'Dành cho cặp đôi'),
@@ -102,7 +116,7 @@ CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
 -- ('beach', 'Biển'),
 -- ('nature', 'Thiên nhiên'),
 -- ('food', 'Ẩm thực'),
--- ('culture', 'Văn hóa, lịch sử'),
+-- ('culture', 'Văn hóa'),
 -- ('relax', 'Nghỉ dưỡng'),
 -- ('budget', 'Giá rẻ, tiết kiệm'),
 -- ('luxury', 'Sang trọng'),
@@ -110,4 +124,10 @@ CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
 -- ('photography', 'Chụp ảnh đẹp'),
 -- ('shopping', 'Mua sắm'),
 -- ('mountain', 'Núi, cao nguyên'),
--- ('city', 'Thành phố');
+-- ('city', 'Thành phố'),
+-- ('history', 'Lịch sử, di tích'),
+-- ('festival', 'Lễ hội'),
+-- ('wildlife', 'Động vật hoang dã'),
+-- ('cruise', 'Du thuyền'),
+-- ('nightlife', 'Phố đêm, bar, club'),
+-- ('water_sports', 'Lặn, kayak, surfing');

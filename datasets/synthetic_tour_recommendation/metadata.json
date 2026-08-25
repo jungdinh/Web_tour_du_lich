@@ -1,0 +1,17 @@
+{
+  "random_seed": 20260813,
+  "generated_at": "2026-08-13T08:40:46",
+  "description": "Synthetic dataset matching the tour recommendation DB schema plus training_interactions.csv for ML ranking.",
+  "tables": {
+    "tours.csv": 240,
+    "tour_tags.csv": 1777,
+    "reviews.csv": 957,
+    "users.csv": 120,
+    "user_preferences.csv": 905,
+    "user_actions.csv": 1721,
+    "favorites.csv": 431,
+    "chat_sessions.csv": 40,
+    "chat_messages.csv": 80,
+    "training_interactions.csv": 8400
+  }
+}

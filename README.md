@@ -7,55 +7,54 @@
 - **Trọng tâm:** Recommendation Engine (không phải website)
 - **Thuật toán:** Content-Based Filtering + Cosine Similarity
 - **AI:** Gemini API cho phân tích review và Slot Filling
-- **Phạm vi:** Tour du lịch nội địa Việt Nam
+- **Phạm vi:** Tour du lịch trong nước và quốc tế (dành cho người Việt Nam)
 
 ## Kiến trúc
 
 ```
-Frontend (React/Vite)
+web-fe (React/Vite) - Port 3000
+    ↓ HTTP
+web-be (Node.js/Express) - Port 4000
+    ↓ HTTP
+ai-service (Python/FastAPI) - Port 8000
     ↓
-Web Service (Node.js/Express)
-    ↓
-AI Service (Python/FastAPI) ←→ Database (PostgreSQL + pgvector)
+Database (PostgreSQL)
     ↑
-Crawler (Python/Scrapy)
+crawler (Python/Scrapy)
 ```
 
-## Các thành phần
+## Cấu trúc thư mục
 
-### 1. Frontend (`/frontend`)
-- React 18 + Vite + TypeScript
-- Routing với React Router
-- State management với Zustand
-- UI: Minimalist, Bento Grid, High-end design
+```
+project/
+├── web-fe/          # Frontend - React (Vite)
+├── web-be/          # Backend - Node.js (Express)
+├── ai-service/      # AI Service - Python (FastAPI)
+├── crawler/         # Crawler - Python (Scrapy)
+├── database/        # SQL migrations
+├── scripts/         # Setup scripts
+├── docs/            # Tài liệu thiết kế
+├── CLAUDE.md        # Project context
+└── README.md
+```
 
-### 2. Web Service (`/web-service`)
-- Node.js + Express + TypeScript
-- REST API cho Frontend
-- JWT Authentication
-- Rate limiting, Caching
+## Yêu cầu
 
-### 3. AI Service (`/ai-service`)
-- Python + FastAPI
-- Recommendation Engine (Cosine Similarity)
-- LLM Integration (Gemini API)
-- Tag Generation từ reviews
-
-### 4. Crawler (`/crawler`)
-- Python + Scrapy
-- Crawl từ Klook, Traveloka
-- Data Preprocessing
-
-### 5. Database (`/database`)
-- PostgreSQL + pgvector
-- Tables: tours, reviews, tour_tags, users, user_preferences, user_actions
-
-## Bắt đầu
-
-### Yêu cầu
 - Node.js 18+
 - Python 3.10+
 - PostgreSQL 14+
+- pgvector extension (for vector similarity search)
+
+## Ports
+
+| Service | Port |
+|---------|------|
+| web-fe | 5174 |
+| web-be | 3000 |
+| ai-service | 8000 |
+| PostgreSQL | 5432 |
+
+## Bắt đầu
 
 ### 1. Setup Database
 
@@ -63,41 +62,109 @@ Crawler (Python/Scrapy)
 # Tạo database
 createdb tour_recommendation
 
+# Enable pgvector extension (required for vector similarity search)
+psql -d tour_recommendation -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
 # Chạy migration
 psql -d postgresql://postgres:password@localhost:5432/tour_recommendation \
   -f database/migrations/001_initial_schema.sql
+
+# Chạy migration 002 nếu cần (thêm bảng favorites)
+psql -d postgresql://postgres:password@localhost:5432/tour_recommendation \
+  -f database/migrations/002_add_favorites.sql
 ```
 
-### 2. Copy và setup environment
+### 2. Setup environment
 
 ```bash
-cp .env.example .env
-# Chỉnh sửa .env với các giá trị thực tế
+# Copy và chỉnh sửa .env cho từng service
+cp web-be/.env web-be/.env.local
+cp ai-service/.env ai-service/.env.local
 ```
 
-### 3. Chạy từng service
+### 3. Cài đặt dependencies và chạy
 
 ```bash
-# Frontend
-cd frontend && npm install && npm run dev
+# web-fe (Frontend) - Port 5174
+cd web-fe && npm install && npm run dev
 
-# Web Service
-cd web-service && npm install && npm run dev
+# web-be (Backend) - Port 3000
+cd web-be && npm install && npm run dev
 
-# AI Service
+# ai-service - Port 8000
 cd ai-service && pip install -r requirements.txt && uvicorn app.main:app --reload --port 8000
 
-# Crawler (tùy chọn - để generate sample data)
+# crawler (để generate sample data)
 cd crawler && pip install -r requirements.txt && python scripts/generate_sample_data.py
 ```
 
-### 4. Mở trình duyệt
+### 4. Truy cập
 
-Truy cập http://localhost:3000
+- Frontend: http://localhost:5174
+- Backend API: http://localhost:3000
+- AI Service: http://localhost:8000
+
+## Các thành phần
+
+### web-fe (`/web-fe`)
+- React 18 + Vite + TypeScript
+- Routing với React Router
+- State management với Zustand
+- UI: Minimalist, Bento Grid, High-end design
+
+### web-be (`/web-be`)
+- Node.js + Express + TypeScript
+- REST API cho Frontend
+- JWT Authentication
+- Rate limiting, Caching (node-cache)
+- Error handling
+
+### ai-service (`/ai-service`)
+- Python + FastAPI
+- Recommendation Engine (Cosine Similarity)
+- LLM Integration (Gemini API)
+- Tag Generation từ reviews
+- Slot Filling Engine (trích xuất thông tin từ tin nhắn user)
+- Database Integration (SQLAlchemy ORM)
+
+**File chính:**
+```
+ai-service/app/
+├── main.py              # FastAPI app entry
+├── config.py            # Configuration
+├── schemas.py           # Pydantic schemas
+├── engine/
+│   ├── recommendation.py  # Core recommendation logic
+│   ├── engine_db.py        # DB-integrated engine
+│   ├── cosine.py          # Cosine similarity
+│   └── tags.py           # Tag taxonomy
+├── llm/
+│   ├── gemini.py         # Gemini API integration
+│   ├── slot_filling.py   # Slot filling engine
+│   └── tag_generator.py  # Tag generation
+└── models/
+    └── database.py       # SQLAlchemy models
+```
+
+### crawler (`/crawler`)
+- Python + Scrapy + BeautifulSoup
+- Crawl từ Klook, Traveloka
+- Data Preprocessing
+- Quick seed script (`quick_seed.py`)
+
+**Scripts chính:**
+```
+crawler/
+├── quick_seed.py           # Quick DB check & sample data
+└── scripts/
+    ├── generate_sample_data.py  # Generate tours + reviews
+    ├── batch_generate_tags.py   # Batch tag generation
+    └── run_crawler.py          # Run crawler
+```
 
 ## Tag Taxonomy
 
-15 tags cố định cho phân loại tour:
+21 tag cố định cho phân loại tour (mở rộng từ 15 tag ban đầu):
 
 | Tag | Ý nghĩa |
 |-----|---------|
@@ -107,7 +174,7 @@ Truy cập http://localhost:3000
 | beach | Biển |
 | nature | Thiên nhiên |
 | food | Ẩm thực |
-| culture | Văn hóa, lịch sử |
+| culture | Văn hóa |
 | relax | Nghỉ dưỡng |
 | budget | Giá rẻ, tiết kiệm |
 | luxury | Sang trọng |
@@ -116,24 +183,34 @@ Truy cập http://localhost:3000
 | shopping | Mua sắm |
 | mountain | Núi, cao nguyên |
 | city | Thành phố |
+| history | Lịch sử, di tích |
+| festival | Lễ hội |
+| wildlife | Động vật hoang dã |
+| cruise | Du thuyền |
+| nightlife | Phố đêm, bar, club |
+| water_sports | Lặn, kayak, surfing |
 
 ## API Endpoints
 
-### Web Service (port 4000)
+### web-be (port 4000)
 
-| Endpoint | Method | Mô tả |
-|----------|--------|--------|
-| `/api/auth/register` | POST | Đăng ký |
-| `/api/auth/login` | POST | Đăng nhập |
-| `/api/auth/profile` | GET | Thông tin user |
-| `/api/tours` | GET | Danh sách tour |
-| `/api/tours/:id` | GET | Chi tiết tour |
-| `/api/tours/:id/reviews` | GET | Reviews của tour |
-| `/api/recommendations` | GET | Gợi ý tour |
-| `/api/actions` | POST | Log hành vi |
-| `/api/chat` | POST | Chat với AI |
+| Endpoint | Method | Auth | Mô tả |
+|----------|--------|------|--------|
+| `/api/auth/register` | POST | ❌ | Đăng ký |
+| `/api/auth/login` | POST | ❌ | Đăng nhập |
+| `/api/auth/profile` | GET | ✅ | Thông tin user |
+| `/api/tours` | GET | ❌ | Danh sách tour |
+| `/api/tours/:id` | GET | ❌ | Chi tiết tour |
+| `/api/tours/:id/reviews` | GET | ❌ | Reviews |
+| `/api/tours/popular` | GET | ❌ | Tour phổ biến |
+| `/api/tours/search` | GET | ❌ | Tìm kiếm |
+| `/api/recommendations` | GET | ✅ | Gợi ý tour |
+| `/api/favorites` | GET | ✅ | Danh sách tour yêu thích |
+| `/api/favorites/:tourId` | POST | ✅ | Thêm/xóa tour yêu thích |
+| `/api/actions` | POST | ✅ | Log hành vi |
+| `/api/chat` | POST | ✅ | Chat với AI |
 
-### AI Service (port 8000)
+### ai-service (port 8000)
 
 | Endpoint | Method | Mô tả |
 |----------|--------|--------|
@@ -143,42 +220,11 @@ Truy cập http://localhost:3000
 | `/ai/generate-tags` | POST | Sinh tags |
 | `/ai/update-profile` | POST | Cập nhật profile |
 
-## Luồng hoạt động
-
-### 1. Cold Start (User mới)
-```
-User đăng nhập → Trả về Tour phổ biến → User tương tác → Thu thập preferences
-```
-
-### 2. Recommendation
-```
-User yêu cầu → Extract User Profile → Cosine Similarity → Rank Tours → Top-N
-```
-
-### 3. Chat/Slot Filling
-```
-User gửi message → LLM trích xuất slots → Hỏi ngược nếu thiếu → Đủ info → Recommend
-```
-
 ## Ghi chú quan trọng
 
 - Crawl dữ liệu chỉ phục vụ mục đích **học thuật**
 - Reviews thu thập sẽ được **ẩn danh hóa**
 - Không tái phân phối hoặc thương mại hóa dữ liệu
-
-## Cấu trúc thư mục
-
-```
-project/
-├── frontend/           # React (Vite)
-├── web-service/       # Node.js (Express)
-├── ai-service/        # Python (FastAPI)
-├── crawler/           # Python (Scrapy)
-├── database/          # SQL migrations
-├── docs/              # Tài liệu thiết kế
-├── CLAUDE.md          # Project context
-└── README.md
-```
 
 ## License
 

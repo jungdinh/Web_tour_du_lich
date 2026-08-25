@@ -2,7 +2,7 @@
 
 ## 1. Tổng quan ý tưởng
 
-Xây dựng hệ thống gợi ý tour du lịch cá nhân hóa ứng dụng AI dựa trên dữ liệu thu thập từ các website du lịch (Klook, Traveloka).
+Xây dựng hệ thống gợi ý tour du lịch cá nhân hóa ứng dụng AI dựa trên dữ liệu thu thập từ BestPrice.
 
 **Trọng tâm:** Recommendation Engine, không phải website.
 
@@ -10,35 +10,42 @@ Xây dựng hệ thống gợi ý tour du lịch cá nhân hóa ứng dụng AI 
 
 | Thành phần | Công nghệ |
 |------------|-----------|
-| AI Service | Python (FastAPI) |
-| Web Service | Node.js (Express) |
-| Frontend | React (Vite) |
+| web-fe | React (Vite) |
+| web-be | Node.js (Express) |
+| ai-service | Python (FastAPI) |
+| crawler | Python (Playwright + BeautifulSoup) — crawl từ BestPrice |
 | Database | PostgreSQL + pgvector |
-| Crawler | Python (Scrapy/BeautifulSoup) |
 | LLM | Gemini API |
 
 ## 3. Kiến trúc
 
 Service-Based Architecture:
-- Frontend → Web Service → AI Service → Database
-- Crawler ghi trực tiếp vào Database
+```
+web-fe → web-be → ai-service → Database
+crawler → Database
+```
 
 ## 4. Các thư mục chính
 
 ```
 project/
-├── frontend/           # React (Vite)
-├── web-service/        # Node.js (Express)
-├── ai-service/         # Python (FastAPI)
-├── crawler/            # Python (Scrapy)
-├── database/           # SQL migrations
-└── docs/               # Tài liệu thiết kế
+├── web-fe/          # Frontend - React (Vite)
+├── web-be/          # Backend - Node.js (Express)
+├── ai-service/      # AI Service - Python (FastAPI)
+├── crawler/         # Crawler - Python (Playwright + BeautifulSoup) — crawl BestPrice
+├── database/        # SQL migrations
+└── docs/            # Tài liệu thiết kế
 ```
 
 ## 5. Quy ước quan trọng
 
-### Tag Taxonomy (15 tags cố định)
-- family, romantic, adventure, beach, nature, food, culture, relax, budget, luxury, spiritual, photography, shopping, mountain, city
+### Tag Taxonomy (21 tags cố định - mở rộng từ 15)
+- **Đối tượng**: family, romantic
+- **Phong cách**: adventure, relax, spiritual
+- **Cảnh quan**: beach, mountain, nature, city
+- **Trải nghiệm**: culture, history, festival, photography, wildlife, cruise, nightlife, water_sports
+- **Ăn uống/Mua sắm**: food, shopping
+- **Giá cả**: budget, luxury
 
 ### Thuật toán gợi ý
 - Content-Based Filtering + Cosine Similarity
@@ -48,46 +55,65 @@ project/
 - LLM hỏi ngược nếu thiếu thông tin
 - Đủ thông tin → Recommendation Engine → Top-N Tour
 
+**Slot Taxonomy:**
+- Required: destination, duration, budget
+- Optional: companions, preferences, season
+
+**File:** `ai-service/app/llm/slot_filling.py`
+
 ## 6. Commands
 
-### Frontend
+### web-fe (Frontend)
 ```bash
-cd frontend && npm install && npm run dev
+cd web-fe && npm install && npm run dev
 ```
 
-### Web Service
+### web-be (Backend)
 ```bash
-cd web-service && npm install && npm run dev
+cd web-be && npm install && npm run dev
 ```
 
-### AI Service
+### ai-service
 ```bash
-cd ai-service && pip install -r requirements.txt && uvicorn app.main:app --reload
+cd ai-service && pip install -r requirements.txt && uvicorn app.main:app --reload --port 8000
 ```
 
-### Crawler
+### crawler
 ```bash
-cd crawler && pip install -r requirements.txt && python -m scrapy crawl klook
+cd crawler && pip install -r requirements.txt && python quick_seed.py
 ```
 
 ## 7. Database
 
 PostgreSQL với các bảng chính:
-- tours, reviews, tour_tags, users, user_preferences, user_actions
+- tours, reviews, tour_tags, users, user_preferences, user_actions, favorites
 
 Sử dụng pgvector extension cho vector similarity search.
+
+**Migrations:**
+- `database/migrations/001_initial_schema.sql` - Schema ban đầu
+- `database/migrations/002_add_favorites.sql` - Thêm bảng favorites
 
 ## 8. Phạm vi
 
 - Đối tượng: Người Việt Nam
-- Tour: Nội địa Việt Nam
+- Tour: Trong nước và quốc tế (dành cho người Việt Nam đi du lịch)
 - Tiền tệ: VND
 - Ngôn ngữ: Tiếng Việt
 - Reviews: Chỉ tiếng Việt
 
 ## 9. Lưu ý khi phát triển
 
-- AI Service không expose ra internet, chỉ Web Service gọi được
-- Frontend không gọi trực tiếp AI Service
+- ai-service không expose ra internet, chỉ web-be gọi được
+- web-fe không gọi trực tiếp ai-service
 - Rate limiting cho API
 - Pagination cho tất cả API trả về danh sách
+
+## 10. Ports
+
+| Service | Port |
+|---------|------|
+| web-fe | 5174 |
+| web-be | 3000 |
+| ai-service | 8000 |
+| PostgreSQL | 5432 |

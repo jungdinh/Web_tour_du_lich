@@ -4,10 +4,16 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/tour_recommendation"
+    database_url: str = "postgresql://postgres:123@localhost:5432/tour_recommendation"
     
-    # Gemini API
+    # LLM provider
+    llm_provider: str = "deepseek"
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-v4-flash"
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
     
     # Security
     api_key: str = "internal-api-key-for-web-service"
