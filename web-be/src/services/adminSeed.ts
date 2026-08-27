@@ -16,8 +16,8 @@ export const ensureDefaultAdmin = async () => {
   if (existing.rows.length === 0) {
     const passwordHash = await bcrypt.hash(password, 12);
     await query(
-      `INSERT INTO users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, 'admin')`,
+      `INSERT INTO users (name, email, password_hash, role, email_verified_at)
+       VALUES ($1, $2, $3, 'admin', CURRENT_TIMESTAMP)`,
       [name, email, passwordHash],
     );
     console.log(`[Admin] Seeded admin account ${email}`);

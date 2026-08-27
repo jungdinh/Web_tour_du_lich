@@ -172,6 +172,34 @@ export interface AdminUserDetail extends AdminUser {
   reviews: Array<{ id: number; tour_id: number; tour_name: string; rating: number; content: string; created_at: string }>
 }
 
+export interface Booking {
+  id: number
+  booking_code: string
+  payment_code: string
+  tour_id: number
+  tour_name: string
+  destination: string
+  departure_date: string
+  guest_count: number
+  unit_price: number
+  total_amount: number
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  note?: string | null
+  status: 'pending_payment' | 'paid' | 'confirmed' | 'cancelled' | 'expired' | 'refunded'
+  payment_status: 'pending' | 'paid' | 'failed' | 'refunded'
+  expires_at: string
+  paid_at?: string | null
+  created_at: string
+  updated_at: string
+  qr_url: string | null
+  bank: {
+    code: string
+    account_number: string
+    account_name: string
+  }
+}
 export interface AdminReview extends Review {
   tour_id: number
   tour_name: string

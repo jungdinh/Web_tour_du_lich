@@ -1,5 +1,5 @@
-﻿import axios from 'axios'
-import type { AdminDashboard, AdminReview, AdminUser, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
+import axios from 'axios'
+import type { AdminDashboard, AdminReview, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env
 const apiBaseURL = (env.VITE_API_URL || `${env.VITE_API_BASE_URL || 'http://localhost:3000'}/api`).replace(/\/$/, '')
@@ -79,11 +79,19 @@ export const authApi = {
     return data
   },
   register: async (name: string, email: string, password: string) => {
-    const { data } = await api.post<{ user: User; token: string }>('/auth/register', {
+    const { data } = await api.post<{ requires_verification: boolean; email: string; message: string }>('/auth/register', {
       name,
       email,
       password,
     })
+    return data
+  },
+  verifyEmail: async (email: string, code: string) => {
+    const { data } = await api.post<{ user: User; token: string }>('/auth/verify-email', { email, code })
+    return data
+  },
+  resendVerification: async (email: string) => {
+    const { data } = await api.post<{ message: string }>('/auth/resend-verification', { email })
     return data
   },
   getProfile: async () => {
@@ -178,6 +186,32 @@ export const chatApi = {
   },
 }
 
+export const bookingApi = {
+  create: async (payload: {
+    tour_id: number
+    departure_date: string
+    guest_count: number
+    contact_name: string
+    contact_email: string
+    contact_phone: string
+    note?: string
+  }) => {
+    const { data } = await api.post<Booking>('/bookings', payload)
+    return data
+  },
+  getById: async (id: number) => {
+    const { data } = await api.get<Booking>(`/bookings/${id}`)
+    return data
+  },
+  getAll: async () => {
+    const { data } = await api.get<Booking[]>('/bookings')
+    return data
+  },
+  cancel: async (id: number) => {
+    const { data } = await api.post<Booking>(`/bookings/${id}/cancel`)
+    return data
+  },
+}
 export const favoriteApi = {
   getFavorites: async (page = 1, limit = 20) => {
     const { data } = await api.get<PaginatedResponse<Tour>>('/favorites', {

@@ -11,27 +11,60 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [verificationRequired, setVerificationRequired] = useState(false)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError('')
-
+    setMessage('')
     if (password !== confirmPassword) {
       setError('Mật khẩu xác nhận không khớp')
       return
     }
-
     setLoading(true)
-
     try {
       const data = await authApi.register(name, email, password)
+      setVerificationRequired(true)
+      setMessage(data.message || 'Mã xác minh đã được gửi đến email của bạn.')
+    } catch (err: unknown) {
+      const response = err as { response?: { data?: { error?: string } } }
+      setError(response.response?.data?.error || 'Đăng ký thất bại')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerify = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    setLoading(true)
+    try {
+      const data = await authApi.verifyEmail(email, code)
       setAuth(data.user, data.token)
       navigate('/')
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } }
-      setError(error.response?.data?.error || 'Đăng ký thất bại')
+      const response = err as { response?: { data?: { error?: string } } }
+      setError(response.response?.data?.error || 'Xác minh email thất bại')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setError('')
+    setMessage('')
+    setLoading(true)
+    try {
+      const data = await authApi.resendVerification(email)
+      setMessage(data.message)
+    } catch (err: unknown) {
+      const response = err as { response?: { data?: { error?: string } } }
+      setError(response.response?.data?.error || 'Không thể gửi lại mã')
     } finally {
       setLoading(false)
     }
@@ -40,65 +73,31 @@ export function RegisterPage() {
   return (
     <div className={styles.authPage}>
       <div className={styles.authCard}>
-        <h1 className={styles.title}>Đăng ký</h1>
-        
+        <h1 className={styles.title}>{verificationRequired ? 'Xác minh email' : 'Đăng ký'}</h1>
         {error && <div className={styles.error}>{error}</div>}
-        
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.field}>
-            <label htmlFor="name">Họ và tên</label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className={styles.field}>
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className={styles.field}>
-            <label htmlFor="password">Mật khẩu</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          </div>
-          
-          <div className={styles.field}>
-            <label htmlFor="confirmPassword">Xác nhận mật khẩu</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          </div>
-          
-          <button type="submit" className={styles.submitBtn} disabled={loading}>
-            {loading ? 'Đang xử lý...' : 'Đăng ký'}
-          </button>
-        </form>
-        
-        <p className={styles.switchAuth}>
-          Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
-        </p>
+        {message && <div className={styles.successMessage}>{message}</div>}
+
+        {verificationRequired ? (
+          <form onSubmit={handleVerify} className={styles.form}>
+            <p>Nhập mã 6 chữ số đã được gửi đến <strong>{email}</strong>.</p>
+            <div className={styles.field}>
+              <label htmlFor="verification-code">Mã xác minh</label>
+              <input id="verification-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} required />
+            </div>
+            <button type="submit" className={styles.submitBtn} disabled={loading}>{loading ? 'Đang xác minh...' : 'Xác minh email'}</button>
+            <button type="button" className={styles.secondaryAuthButton} onClick={() => void handleResend()} disabled={loading}>Gửi lại mã</button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className={styles.form}>
+            <div className={styles.field}><label htmlFor="name">Họ và tên</label><input id="name" type="text" value={name} onChange={(event) => setName(event.target.value)} required /></div>
+            <div className={styles.field}><label htmlFor="email">Email</label><input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
+            <div className={styles.field}><label htmlFor="password">Mật khẩu</label><input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required /></div>
+            <div className={styles.field}><label htmlFor="confirmPassword">Xác nhận mật khẩu</label><input id="confirmPassword" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={6} required /></div>
+            <button type="submit" className={styles.submitBtn} disabled={loading}>{loading ? 'Đang xử lý...' : 'Đăng ký'}</button>
+          </form>
+        )}
+
+        <p className={styles.switchAuth}>{verificationRequired ? 'Nhập sai email?' : 'Đã có tài khoản?'} <Link to="/login">Đăng nhập</Link></p>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import cors from 'cors';
@@ -11,6 +11,8 @@ import { actionRouter } from './routes/actions.js';
 import { chatRouter } from './routes/chat.js';
 import { favoriteRouter } from './routes/favorites.js';
 import { adminRouter } from './routes/admin.js';
+import { bookingRouter } from './routes/bookings.js';
+import { paymentRouter } from './routes/payments.js';
 import { ensureDefaultAdmin } from './services/adminSeed.js';
 import { errorHandler } from './middlewares/error.js';
 import { rateLimiter } from './middlewares/rateLimit.js';
@@ -36,6 +38,8 @@ app.use('/api/actions', actionRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/favorites', favoriteRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/bookings', bookingRouter);
+app.use('/api/payments', paymentRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'healthy', service: 'web-service' });

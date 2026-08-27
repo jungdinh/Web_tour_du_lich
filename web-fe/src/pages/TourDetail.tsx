@@ -1,9 +1,9 @@
 ﻿import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { tourApi, favoriteApi } from '@/api'
+import { bookingApi, tourApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ImageWithFallback } from '@/components/ImageWithFallback'
-import type { Tour, Review } from '@/types'
+import type { Booking, Tour, Review } from '@/types'
 import { formatRatingToFive } from '@/utils/rating'
 import styles from './TourDetail.module.css'
 import { sanitizeRichText } from '@/utils/sanitizeRichText'
@@ -41,7 +41,7 @@ const inferDeparture = (tour: Tour) => {
 
 export function TourDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { token } = useAuthStore()
+  const { token, user } = useAuthStore()
   const [tour, setTour] = useState<Tour | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,6 +49,19 @@ export function TourDetailPage() {
   const [savingFavorite, setSavingFavorite] = useState(false)
   const [activeImage, setActiveImage] = useState('')
   const [activeTab, setActiveTab] = useState<'itinerary' | 'highlights' | 'included' | 'schedule' | 'reviews'>('itinerary')
+  const [bookingOpen, setBookingOpen] = useState(false)
+  const [bookingLoading, setBookingLoading] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const [createdBooking, setCreatedBooking] = useState<Booking | null>(null)
+  const [bookingForm, setBookingForm] = useState({
+    departure_date: '',
+    guest_count: 1,
+    contact_name: user?.name || '',
+    contact_email: user?.email || '',
+    contact_phone: '',
+    note: '',
+  })
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,6 +128,58 @@ export function TourDetailPage() {
     } finally {
       setSavingFavorite(false)
     }
+  }
+
+
+  useEffect(() => {
+    if (!bookingOpen || createdBooking?.payment_status !== 'pending') return
+    const timer = window.setInterval(async () => {
+      try {
+        const refreshed = await bookingApi.getById(createdBooking.id)
+        setCreatedBooking(refreshed)
+        if (refreshed.payment_status !== 'pending') window.clearInterval(timer)
+      } catch {
+        // Keep the payment screen usable while the webhook is pending.
+      }
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [bookingOpen, createdBooking?.id, createdBooking?.payment_status])
+
+  const openBooking = () => {
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
+    setBookingError('')
+    setCreatedBooking(null)
+    setBookingForm({
+      departure_date: '',
+      guest_count: 1,
+      contact_name: user?.name || '',
+      contact_email: user?.email || '',
+      contact_phone: '',
+      note: '',
+    })
+    setBookingOpen(true)
+  }
+
+  const submitBooking = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!tour) return
+    setBookingLoading(true)
+    setBookingError('')
+    try {
+      const booking = await bookingApi.create({ tour_id: tour.id, ...bookingForm })
+      setCreatedBooking(booking)
+    } catch (error: any) {
+      setBookingError(error?.response?.data?.error || 'Không thể tạo booking. Vui lòng thử lại.')
+    } finally {
+      setBookingLoading(false)
+    }
+  }
+
+  const closeBooking = () => {
+    if (!bookingLoading) setBookingOpen(false)
   }
 
   const formatPrice = (price: number) => {
@@ -583,7 +648,7 @@ export function TourDetailPage() {
               <button
                 type="button"
                 className={styles.bookNowBtn}
-                onClick={() => alert('Chức năng đặt tour trực tuyến đang kết nối cổng thanh toán. Nhân viên hỗ trợ sẽ liên hệ bạn ngay!')}
+                onClick={openBooking}
               >
                 <span>⚡ Đặt tour ngay</span>
               </button>
@@ -616,6 +681,46 @@ export function TourDetailPage() {
           </div>
         </aside>
       </div>
+
+      {bookingOpen && (
+        <div className={styles.bookingModalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking() }}>
+          <section className={styles.bookingModal} role="dialog" aria-modal="true" aria-labelledby="booking-title">
+            <div className={styles.bookingModalHeader}>
+              <div><span className={styles.bookingEyebrow}>ĐẶT TOUR TRỰC TUYẾN</span><h2 id="booking-title">{createdBooking ? 'Quét QR để thanh toán' : 'Thông tin đặt tour'}</h2></div>
+              <button type="button" className={styles.bookingClose} onClick={closeBooking} aria-label="Đóng">×</button>
+            </div>
+            {createdBooking ? (
+              <div className={styles.paymentPanel}>
+                <div className={createdBooking.payment_status === 'paid' ? styles.paymentSuccess : styles.paymentPending}>{createdBooking.payment_status === 'paid' ? 'Thanh toán đã được xác nhận.' : 'Đơn đang chờ thanh toán'}</div>
+                <p className={styles.paymentTourName}>{createdBooking.tour_name}</p>
+                {createdBooking.qr_url ? <img className={styles.paymentQr} src={createdBooking.qr_url} alt="Mã QR thanh toán SePay" /> : <div className={styles.paymentQrMissing}>Admin chưa cấu hình tài khoản ngân hàng SePay.</div>}
+                <div className={styles.paymentDetails}>
+                  <div><span>Số tiền</span><strong>{formatPrice(createdBooking.total_amount)}</strong></div>
+                  <div><span>Nội dung chuyển khoản</span><strong>{createdBooking.payment_code}</strong></div>
+                  {createdBooking.bank.account_number && <div><span>Tài khoản nhận</span><strong>{createdBooking.bank.account_number} · {createdBooking.bank.account_name}</strong></div>}
+                </div>
+                <p className={styles.paymentHint}>Mở ứng dụng ngân hàng, quét mã QR và giữ nguyên nội dung chuyển khoản. Hệ thống sẽ tự cập nhật khi SePay nhận được tiền.</p>
+                <div className={styles.paymentActions}><button type="button" className={styles.secondaryBookingButton} onClick={closeBooking}>Đóng</button></div>
+              </div>
+            ) : (
+              <form className={styles.bookingForm} onSubmit={submitBooking}>
+                <div className={styles.bookingTourSummary}><strong>{tour.name}</strong><span>{formatPrice(tour.price)} / khách · {durationText}</span></div>
+                <div className={styles.bookingFormGrid}>
+                  <label>Ngày khởi hành<input type="date" min={new Date().toISOString().slice(0, 10)} required value={bookingForm.departure_date} onChange={(event) => setBookingForm({ ...bookingForm, departure_date: event.target.value })} /></label>
+                  <label>Số khách<input type="number" min="1" max="20" required value={bookingForm.guest_count} onChange={(event) => setBookingForm({ ...bookingForm, guest_count: Number(event.target.value) })} /></label>
+                  <label>Họ và tên<input required maxLength={255} value={bookingForm.contact_name} onChange={(event) => setBookingForm({ ...bookingForm, contact_name: event.target.value })} /></label>
+                  <label>Email<input type="email" required maxLength={255} value={bookingForm.contact_email} onChange={(event) => setBookingForm({ ...bookingForm, contact_email: event.target.value })} /></label>
+                  <label>Số điện thoại<input required maxLength={30} value={bookingForm.contact_phone} onChange={(event) => setBookingForm({ ...bookingForm, contact_phone: event.target.value })} /></label>
+                  <label className={styles.bookingFullField}>Ghi chú thêm<textarea maxLength={1000} rows={3} value={bookingForm.note} onChange={(event) => setBookingForm({ ...bookingForm, note: event.target.value })} /></label>
+                </div>
+                {bookingError && <p className={styles.bookingError}>{bookingError}</p>}
+                <div className={styles.bookingFormFooter}><span>Tổng dự kiến: <strong>{formatPrice(tour.price * bookingForm.guest_count)}</strong></span><button type="submit" className={styles.bookNowBtn} disabled={bookingLoading}>{bookingLoading ? 'Đang tạo booking...' : 'Tiếp tục thanh toán QR'}</button></div>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
+
     </div>
   )
 }
