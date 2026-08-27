@@ -81,7 +81,9 @@ export function TourCard({
   const durationText = tour.duration_label?.trim() || `${tour.duration || 1} ngày`
 
   const handleClick = () => {
-    actionApi.logAction(tour.id, 'click').catch(() => {})
+    if (token) {
+      actionApi.logAction(tour.id, 'click').catch(() => {})
+    }
     onClick?.()
   }
 
