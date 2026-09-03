@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { query } from '../db/index.js';
 import { sendVerificationEmail } from '../services/email.js';
 import { z } from 'zod';
@@ -10,6 +11,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'];
 const verificationMinutes = Math.max(5, Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES || 10));
 const verificationSecret = process.env.EMAIL_VERIFICATION_SECRET || JWT_SECRET;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim();
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2, 'Họ tên phải có ít nhất 2 ký tự').max(255),
@@ -25,6 +28,10 @@ export const loginSchema = z.object({
 const verificationSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
   code: z.string().trim().regex(/^\d{6}$/, 'Mã xác minh gồm 6 chữ số'),
+});
+
+const googleLoginSchema = z.object({
+  credential: z.string().trim().min(1).max(10000),
 });
 
 export interface AuthUser { id: number; name: string; email: string; role: string }
@@ -65,6 +72,28 @@ const publicUser = (user: Record<string, unknown>): AuthUser => ({
   email: String(user.email),
   role: String(user.role),
 });
+
+const verifyGoogleCredential = async (credential: string) => {
+  if (!googleClient || !GOOGLE_CLIENT_ID) throw new Error('GOOGLE_AUTH_NOT_CONFIGURED');
+
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+    throw new Error('GOOGLE_TOKEN_INVALID');
+  }
+
+  const email = payload.email.trim().toLowerCase();
+  const displayName = typeof payload.name === 'string' ? payload.name.trim() : '';
+
+  return {
+    sub: payload.sub,
+    email,
+    name: (displayName || email.split('@')[0] || 'Google user').slice(0, 255),
+  };
+};
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -172,6 +201,88 @@ export const resendVerification = async (req: Request, res: Response) => {
   }
 };
 
+export const googleLogin = async (req: Request, res: Response) => {
+  try {
+    const { credential } = googleLoginSchema.parse(req.body);
+    let googleProfile: { sub: string; email: string; name: string };
+
+    try {
+      googleProfile = await verifyGoogleCredential(credential);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'GOOGLE_AUTH_NOT_CONFIGURED') {
+        return res.status(503).json({ error: 'Đăng nhập bằng Google chưa được cấu hình.' });
+      }
+      if (error instanceof Error && error.message === 'GOOGLE_TOKEN_INVALID') {
+        return res.status(401).json({ error: 'Thông tin đăng nhập Google không hợp lệ.' });
+      }
+      console.error('[GoogleAuth] Token verification failed:', error instanceof Error ? error.message : error);
+      return res.status(401).json({ error: 'Không thể xác minh tài khoản Google.' });
+    }
+
+    const linkedUserResult = await query(
+      `SELECT id, name, email, role, is_active, password_hash
+       FROM users WHERE google_sub = $1`,
+      [googleProfile.sub],
+    );
+
+    if (linkedUserResult.rows.length) {
+      const linkedUser = linkedUserResult.rows[0];
+      if (linkedUser.is_active === false) return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
+      const provider = linkedUser.password_hash ? 'both' : 'google';
+      const updated = await query(
+        `UPDATE users
+         SET auth_provider = $1, email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING id, name, email, role`,
+        [provider, linkedUser.id],
+      );
+      const profile = publicUser(updated.rows[0]);
+      return res.json({ user: profile, token: createToken(profile) });
+    }
+
+    const existingUserResult = await query(
+      `SELECT id, name, email, role, is_active, password_hash, google_sub
+       FROM users WHERE email = $1`,
+      [googleProfile.email],
+    );
+
+    if (existingUserResult.rows.length) {
+      const existingUser = existingUserResult.rows[0];
+      if (existingUser.is_active === false) return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
+      if (existingUser.google_sub && existingUser.google_sub !== googleProfile.sub) {
+        return res.status(409).json({ error: 'Email này đã được liên kết với tài khoản Google khác.' });
+      }
+
+      const provider = existingUser.password_hash ? 'both' : 'google';
+      const linked = await query(
+        `UPDATE users
+         SET google_sub = $1, auth_provider = $2, email_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING id, name, email, role`,
+        [googleProfile.sub, provider, existingUser.id],
+      );
+      const profile = publicUser(linked.rows[0]);
+      return res.json({ user: profile, token: createToken(profile) });
+    }
+
+    const created = await query(
+      `INSERT INTO users (name, email, password_hash, role, email_verified_at, google_sub, auth_provider)
+       VALUES ($1, $2, NULL, 'user', CURRENT_TIMESTAMP, $3, 'google')
+       RETURNING id, name, email, role`,
+      [googleProfile.name, googleProfile.email, googleProfile.sub],
+    );
+    const profile = publicUser(created.rows[0]);
+    return res.status(201).json({ user: profile, token: createToken(profile) });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+      return res.status(409).json({ error: 'Tài khoản Google vừa được liên kết, vui lòng thử lại.' });
+    }
+    console.error('Google login error:', error);
+    return res.status(500).json({ error: 'Không thể đăng nhập bằng Google.' });
+  }
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
@@ -182,6 +293,7 @@ export const login = async (req: Request, res: Response) => {
     if (!result.rows.length) return res.status(401).json({ error: 'Email hoặc mật khẩu không đúng.' });
     const user = result.rows[0];
     if (user.is_active === false) return res.status(403).json({ error: 'Tài khoản đã bị khóa.' });
+    if (!user.password_hash) return res.status(401).json({ error: 'Tài khoản này dùng đăng nhập Google. Vui lòng chọn nút Đăng nhập bằng Google.' });
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) return res.status(401).json({ error: 'Email hoặc mật khẩu không đúng.' });
     if (!user.email_verified_at) return res.status(403).json({ code: 'EMAIL_NOT_VERIFIED', email, error: 'Email chưa được xác minh. Vui lòng nhập mã đã gửi về email.' });

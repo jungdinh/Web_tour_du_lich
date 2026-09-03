@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import type { User } from '@/types'
+import { GoogleSignInButton } from '@/components/GoogleSignInButton'
 import styles from './Auth.module.css'
 
 export function RegisterPage() {
@@ -70,6 +72,11 @@ export function RegisterPage() {
     }
   }
 
+  const handleGoogleSuccess = (data: { user: User; token: string }) => {
+    setAuth(data.user, data.token)
+    navigate('/')
+  }
+
   return (
     <div className={styles.authPage}>
       <div className={styles.authCard}>
@@ -95,6 +102,13 @@ export function RegisterPage() {
             <div className={styles.field}><label htmlFor="confirmPassword">Xác nhận mật khẩu</label><input id="confirmPassword" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={6} required /></div>
             <button type="submit" className={styles.submitBtn} disabled={loading}>{loading ? 'Đang xử lý...' : 'Đăng ký'}</button>
           </form>
+        )}
+
+        {!verificationRequired && (
+          <>
+            <div className={styles.divider} aria-hidden="true"><span>Hoặc</span></div>
+            <GoogleSignInButton mode="signup" onSuccess={handleGoogleSuccess} onError={setError} />
+          </>
         )}
 
         <p className={styles.switchAuth}>{verificationRequired ? 'Nhập sai email?' : 'Đã có tài khoản?'} <Link to="/login">Đăng nhập</Link></p>

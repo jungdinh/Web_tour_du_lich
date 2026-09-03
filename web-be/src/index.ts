@@ -18,11 +18,25 @@ import { errorHandler } from './middlewares/error.js';
 import { rateLimiter } from './middlewares/rateLimit.js';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const configuredPort = Number.parseInt(process.env.PORT || '4000', 10);
+const PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 4000;
+const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5174')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const trustProxy = process.env.TRUST_PROXY?.trim();
+
+if (trustProxy) {
+  const numericTrustProxy = Number(trustProxy);
+  app.set('trust proxy', Number.isNaN(numericTrustProxy) ? trustProxy : numericTrustProxy);
+}
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5174',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) return callback(null, true);
+    return callback(new Error('Origin is not allowed by CORS.'));
+  },
   credentials: true,
 }));
 app.use(compression());
@@ -54,7 +68,7 @@ const startServer = async () => {
     console.error('[Admin] Could not seed default admin account:', error);
   }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Web Service running on port ${PORT}`);
   });
 };

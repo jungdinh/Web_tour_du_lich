@@ -23,3 +23,6 @@
 **/vite.config.js
 register_body.json
 register_resp.json
+
+# Local database credentials
+pass_postgree.txt

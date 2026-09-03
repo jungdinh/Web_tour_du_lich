@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 import { ThemeToggle } from './ThemeToggle'
@@ -28,10 +28,15 @@ export function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   const isChatPage = location.pathname === '/chat'
   const isAdminPage = location.pathname.startsWith('/admin')
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -60,7 +65,15 @@ export function Layout() {
             Tour<span>AI</span>
           </Link>
           
-          <nav className={styles.nav}>
+          <button 
+            className={styles.mobileMenuBtn} 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? '✕' : '☰'}
+          </button>
+
+          <nav className={`${styles.nav} ${isMobileMenuOpen ? styles.navOpen : ''}`}>
             {!isAdminPage && (
               <>
             <Link

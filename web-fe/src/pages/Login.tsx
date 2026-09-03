@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import type { User } from '@/types'
+import { GoogleSignInButton } from '@/components/GoogleSignInButton'
 import styles from './Auth.module.css'
 
 export function LoginPage() {
@@ -27,6 +29,11 @@ export function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleGoogleSuccess = (data: { user: User; token: string }) => {
+    setAuth(data.user, data.token)
+    navigate(data.user.role === 'admin' ? '/admin' : '/')
   }
 
   return (
@@ -63,6 +70,9 @@ export function LoginPage() {
             {loading ? 'Đang xử lý...' : 'Đăng nhập'}
           </button>
         </form>
+
+        <div className={styles.divider} aria-hidden="true"><span>Hoặc</span></div>
+        <GoogleSignInButton onSuccess={handleGoogleSuccess} onError={setError} />
         
         <p className={styles.switchAuth}>
           Chưa có tài khoản? <Link to="/register">Đăng ký</Link>

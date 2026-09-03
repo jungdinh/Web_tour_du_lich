@@ -137,7 +137,7 @@
   transform: translateY(0);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .searchBox {
     flex-direction: column;
   }
@@ -412,11 +412,7 @@
   margin-bottom: var(--space-12);
 }
 
-@media (min-width: 1200px) {
-  .tourGrid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
+/* Grid layout handles desktop auto-fill naturally */
 
 /* EMPTY STATE */
 .empty {

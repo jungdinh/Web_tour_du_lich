@@ -78,6 +78,10 @@ export const authApi = {
     })
     return data
   },
+  googleLogin: async (credential: string) => {
+    const { data } = await api.post<{ user: User; token: string }>('/auth/google', { credential })
+    return data
+  },
   register: async (name: string, email: string, password: string) => {
     const { data } = await api.post<{ requires_verification: boolean; email: string; message: string }>('/auth/register', {
       name,

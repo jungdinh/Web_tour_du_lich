@@ -88,11 +88,7 @@
   margin-bottom: var(--space-12);
 }
 
-@media (min-width: 1200px) {
-  .grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
+/* Grid uses auto-fill for responsive columns */
 
 .empty {
   padding: var(--space-16) var(--space-4);
