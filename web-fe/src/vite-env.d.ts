@@ -10,6 +10,7 @@ interface GoogleCredentialResponse {
 }
 
 interface GoogleButtonOptions {
+  type?: 'standard' | 'icon'
   theme?: string
   size?: string
   text?: string

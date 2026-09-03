@@ -114,8 +114,9 @@ export function GoogleSignInButton({ mode = 'signin', onSuccess, onError }: Goog
         })
         buttonRef.current.innerHTML = ''
         googleId.renderButton(buttonRef.current, {
+          type: 'standard',
           theme: 'outline',
-          size: 'large',
+          size: 'medium',
           text: mode === 'signup' ? 'signup_with' : 'signin_with',
           shape: 'rectangular',
           logo_alignment: 'left',
