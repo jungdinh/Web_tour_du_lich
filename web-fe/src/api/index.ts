@@ -2,7 +2,22 @@ import axios from 'axios'
 import type { AdminDashboard, AdminReview, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env
-const apiBaseURL = (env.VITE_API_URL || `${env.VITE_API_BASE_URL || 'http://localhost:3000'}/api`).replace(/\/$/, '')
+const normalizeApiBaseURL = (value: string) => {
+  const trimmed = value.trim().replace(/\/+$/, '')
+
+  if (!trimmed || trimmed.startsWith('/')) return trimmed
+  if (trimmed.startsWith('//')) return `https:${trimmed}`
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) return trimmed
+  if (/^(localhost|127(?:\.\d{1,3}){3})(:\d+)?(?:\/|$)/i.test(trimmed)) return `http://${trimmed}`
+
+  return `https://${trimmed}`
+}
+
+const configuredApiURL = env.VITE_API_URL?.trim()
+const configuredBaseURL = env.VITE_API_BASE_URL?.trim()
+const apiBaseURL = normalizeApiBaseURL(
+  configuredApiURL || `${configuredBaseURL || 'http://localhost:3000'}/api`,
+)
 
 const api = axios.create({
   baseURL: apiBaseURL,
