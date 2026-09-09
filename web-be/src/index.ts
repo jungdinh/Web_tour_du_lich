@@ -14,6 +14,7 @@ import { adminRouter } from './routes/admin.js';
 import { bookingRouter } from './routes/bookings.js';
 import { paymentRouter } from './routes/payments.js';
 import { ensureDefaultAdmin } from './services/adminSeed.js';
+import { pingDatabase } from './db/index.js';
 import { errorHandler } from './middlewares/error.js';
 import { rateLimiter } from './middlewares/rateLimit.js';
 
@@ -55,8 +56,13 @@ app.use('/api/admin', adminRouter);
 app.use('/api/bookings', bookingRouter);
 app.use('/api/payments', paymentRouter);
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'healthy', service: 'web-service' });
+app.get('/health', async (_req, res) => {
+  try {
+    await pingDatabase();
+    res.json({ status: 'healthy', service: 'web-service', database: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'unhealthy', service: 'web-service', database: 'unavailable' });
+  }
 });
 
 app.use(errorHandler);

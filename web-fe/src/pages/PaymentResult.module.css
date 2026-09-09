@@ -1,0 +1,116 @@
+.page {
+  display: grid;
+  min-height: 70vh;
+  place-items: center;
+  padding: 48px 0;
+}
+
+.card {
+  width: min(620px, 100%);
+  padding: 40px 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.success { border-color: rgba(16, 185, 129, .35); }
+
+.icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.success .icon { background: #059669; }
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-accent);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.card h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.message {
+  max-width: 510px;
+  margin: 14px auto 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.loading,
+.error {
+  margin-top: 18px;
+  color: var(--color-text-secondary);
+  font-size: .9rem;
+}
+
+.error {
+  padding: 11px 14px;
+  border-radius: 9px;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.details {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: var(--color-bg);
+}
+
+.details span { color: var(--color-text-secondary); }
+.details strong { color: var(--color-text); text-align: right; overflow-wrap: anywhere; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary { background: var(--color-accent); color: #fff; }
+.secondary { border: 1px solid var(--color-border); color: var(--color-text-secondary); }
+
+@media (max-width: 600px) {
+  .card { padding: 30px 18px; }
+  .details div { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .details strong { text-align: left; }
+}

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminDashboard, AdminReview, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
+import type { AdminBooking, AdminBookingDetail, AdminDashboard, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env
 const normalizeApiBaseURL = (value: string) => {
@@ -148,11 +148,33 @@ export const tourApi = {
     const { data } = await api.get<Tour>(`/tours/${id}`)
     return sanitizeTour(data)
   },
-  getTourReviews: async (id: number, page = 1) => {
+  getTourReviews: async (id: number, page = 1, limit = 10) => {
     const { data } = await api.get<PaginatedResponse<Review>>(`/tours/${id}/reviews`, {
-      params: { page },
+      params: { page, limit },
     })
     return data
+  },
+  getMyTourReview: async (id: number) => {
+    const { data } = await api.get<{ review: Review | null }>(`/tours/${id}/reviews/me`)
+    return data.review
+  },
+  createTourReview: async (id: number, payload: { rating: number; content: string }) => {
+    const { data } = await api.post<Review>(`/tours/${id}/reviews`, payload)
+    return data
+  },
+  updateTourReview: async (tourId: number, reviewId: number, payload: { rating: number; content: string }) => {
+    const { data } = await api.put<Review>(`/tours/${tourId}/reviews/${reviewId}`, payload)
+    return data
+  },
+  deleteTourReview: async (tourId: number, reviewId: number) => {
+    await api.delete(`/tours/${tourId}/reviews/${reviewId}`)
+  },
+  saveAdminReviewReply: async (tourId: number, reviewId: number, content: string) => {
+    const { data } = await api.put<Review>(`/tours/${tourId}/reviews/${reviewId}/reply`, { content })
+    return data
+  },
+  deleteAdminReviewReply: async (tourId: number, reviewId: number) => {
+    await api.delete(`/tours/${tourId}/reviews/${reviewId}/reply`)
   },
   searchTours: async (q: string, params?: Record<string, unknown>) => {
     const { data } = await api.get<Tour[]>('/tours/search', { params: { q, ...params } })
@@ -226,6 +248,15 @@ export const bookingApi = {
     const { data } = await api.get<Booking[]>('/bookings')
     return data
   },
+  getHistory: async (params?: {
+    page?: number
+    limit?: number
+    status?: 'all' | Booking['status']
+    paymentStatus?: 'all' | Booking['payment_status']
+  }) => {
+    const { data } = await api.get<PaginatedResponse<Booking>>('/bookings/history', { params })
+    return data
+  },
   cancel: async (id: number) => {
     const { data } = await api.post<Booking>(`/bookings/${id}/cancel`)
     return data
@@ -265,6 +296,20 @@ export const recommendationsPageApi = {
 export const adminApi = {
   getDashboard: async () => {
     const { data } = await api.get<AdminDashboard>('/admin/dashboard')
+    return data
+  },
+  getBookings: async (params?: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: 'all' | Booking['status']
+    paymentStatus?: 'all' | Booking['payment_status']
+  }) => {
+    const { data } = await api.get<PaginatedResponse<AdminBooking>>('/admin/bookings', { params })
+    return data
+  },
+  getBookingDetail: async (id: number) => {
+    const { data } = await api.get<AdminBookingDetail>(`/admin/bookings/${id}`)
     return data
   },
   getTours: async (params?: {
@@ -315,13 +360,6 @@ export const adminApi = {
   },
   deleteUser: async (id: number) => {
     await api.delete(`/admin/users/${id}`)
-  },
-  getReviews: async (params?: { page?: number; limit?: number; search?: string }) => {
-    const { data } = await api.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params })
-    return data
-  },
-  deleteReview: async (id: number) => {
-    await api.delete(`/admin/reviews/${id}`)
   },
 }
 

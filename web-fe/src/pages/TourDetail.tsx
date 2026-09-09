@@ -3,10 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import { bookingApi, tourApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ImageWithFallback } from '@/components/ImageWithFallback'
+import { TourReviews } from '@/components/TourReviews'
 import type { Booking, Tour, Review } from '@/types'
 import { formatRatingToFive } from '@/utils/rating'
 import styles from './TourDetail.module.css'
 import { sanitizeRichText } from '@/utils/sanitizeRichText'
+import { formatScheduleDate, getFutureScheduleRows } from '@/utils/schedule'
 
 const DEPARTURE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /t\.?p\.?\s*h(?:o|\u1ed3)?\s*ch\u00ed\s*minh|tp\.?\s*hcm|hcm|s\u00e0i\s*g\u00f2n|t\u00e2n\s*s\u01a1n\s*nh\u1ea5t/i, label: 'TP. Hồ Chí Minh' },
@@ -44,6 +46,7 @@ export function TourDetailPage() {
   const { token, user } = useAuthStore()
   const [tour, setTour] = useState<Tour | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewTotal, setReviewTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [savingFavorite, setSavingFavorite] = useState(false)
@@ -73,6 +76,7 @@ export function TourDetailPage() {
         ])
         setTour(tourData)
         setReviews(reviewsData.data)
+        setReviewTotal(reviewsData.pagination.total)
       } catch (error) {
         console.error('Failed to fetch tour:', error)
       } finally {
@@ -137,7 +141,7 @@ export function TourDetailPage() {
       try {
         const refreshed = await bookingApi.getById(createdBooking.id)
         setCreatedBooking(refreshed)
-        if (refreshed.payment_status !== 'pending') window.clearInterval(timer)
+        if (refreshed.payment_status !== 'pending' || refreshed.status !== 'pending_payment') window.clearInterval(timer)
       } catch {
         // Keep the payment screen usable while the webhook is pending.
       }
@@ -145,15 +149,20 @@ export function TourDetailPage() {
     return () => window.clearInterval(timer)
   }, [bookingOpen, createdBooking?.id, createdBooking?.payment_status])
 
-  const openBooking = () => {
+  const openBooking = (departureDate = '') => {
     if (!token) {
       window.location.href = '/login'
+      return
+    }
+    const futureSchedule = getFutureScheduleRows(tour?.schedule)
+    if (!futureSchedule.length) {
+      setActiveTab('schedule')
       return
     }
     setBookingError('')
     setCreatedBooking(null)
     setBookingForm({
-      departure_date: '',
+      departure_date: futureSchedule.some((row) => row.date === departureDate) ? departureDate : '',
       guest_count: 1,
       contact_name: user?.name || '',
       contact_email: user?.email || '',
@@ -166,6 +175,15 @@ export function TourDetailPage() {
   const submitBooking = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!tour) return
+    const selectedSchedule = getFutureScheduleRows(tour.schedule).find((row) => row.date === bookingForm.departure_date)
+    if (!selectedSchedule) {
+      setBookingError('Vui lòng chọn một ngày khởi hành còn mở trong tương lai.')
+      return
+    }
+    if (!selectedSchedule.available) {
+      setBookingError('Ngày khởi hành này hiện đã hết chỗ. Vui lòng chọn ngày khác.')
+      return
+    }
     setBookingLoading(true)
     setBookingError('')
     try {
@@ -176,6 +194,27 @@ export function TourDetailPage() {
     } finally {
       setBookingLoading(false)
     }
+  }
+
+  const openSepayCheckout = () => {
+    const checkout = createdBooking?.checkout
+    if (!checkout) return
+
+    const form = document.createElement('form')
+    form.method = checkout.method
+    form.action = checkout.action
+    form.style.display = 'none'
+
+    Object.entries(checkout.fields).forEach(([name, value]) => {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = name
+      input.value = value
+      form.appendChild(input)
+    })
+
+    document.body.appendChild(form)
+    form.submit()
   }
 
   const closeBooking = () => {
@@ -232,13 +271,15 @@ export function TourDetailPage() {
     : 0
   const savings = hasDiscount ? tour.original_price! - tour.price : 0
   const itinerary = tour.itinerary ?? []
-  const schedule = tour.schedule ?? []
+  const schedule = getFutureScheduleRows(tour.schedule)
   const included = tour.included ?? []
   const excluded = tour.excluded ?? []
   const places = tour.places ?? []
   const topics = tour.topics ?? []
   const departure = inferDeparture(tour)
   const durationText = tour.duration_label?.trim() || `${tour.duration || 1} ngày`
+  const selectedSchedule = schedule.find((row) => row.date === bookingForm.departure_date)
+  const selectedUnitPrice = selectedSchedule?.price && selectedSchedule.price > 0 ? selectedSchedule.price : tour.price
 
   return (
     <div className="container">
@@ -395,7 +436,7 @@ export function TourDetailPage() {
               className={`${styles.tabLink} ${activeTab === 'reviews' ? styles.tabLinkActive : ''}`}
               onClick={() => setActiveTab('reviews')}
             >
-              ⭐ Đánh giá ({reviews.length})
+              ⭐ Đánh giá ({reviewTotal})
             </button>
           </div>
 
@@ -532,10 +573,10 @@ export function TourDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {schedule.map((row, i) => (
-                        <tr key={i}>
-                          <td><strong>📅 {row.date}</strong></td>
-                          <td className={styles.schedulePrice}>{formatPrice(row.price)}</td>
+                      {schedule.map((row) => (
+                        <tr key={row.date} className={row.date === bookingForm.departure_date ? styles.scheduleRowSelected : undefined}>
+                          <td><strong>📅 {formatScheduleDate(row.date)}</strong></td>
+                          <td className={styles.schedulePrice}>{formatPrice(row.price > 0 ? row.price : tour.price)}</td>
                           <td>
                             {row.available ? (
                               <span className={styles.statusAvailable}>✓ Còn chỗ</span>
@@ -548,7 +589,7 @@ export function TourDetailPage() {
                               type="button"
                               className={styles.scheduleBookBtn}
                               disabled={!row.available}
-                              onClick={() => alert(`Bạn đã chọn khởi hành ngày ${row.date}`)}
+                               onClick={() => openBooking(row.date)}
                             >
                               Chọn ngày
                             </button>
@@ -559,52 +600,23 @@ export function TourDetailPage() {
                   </table>
                 </div>
               ) : (
-                <p className={styles.emptyNote}>Lịch khởi hành linh hoạt. Vui lòng liên hệ để được hỗ trợ.</p>
+                <p className={styles.emptyNote}>Tour hiện chưa có ngày khởi hành trong tương lai để đặt trực tuyến.</p>
               )}
             </div>
           )}
 
           {/* TAB CONTENT: REVIEWS */}
           {activeTab === 'reviews' && (
-            <div className={styles.tabSection}>
-              <div className={styles.reviewSummaryBox}>
-                <div className={styles.scoreLarge}>
-                  {formatRatingToFive(tour.avg_rating)}
-                </div>
-                <div>
-                  <div className={styles.starsLarge}>★★★★★</div>
-                  <div className={styles.scoreCount}>Dựa trên {reviews.length} đánh giá thực từ du khách</div>
-                </div>
-              </div>
-
-              {reviews.length === 0 ? (
-                <p className={styles.emptyNote}>Chưa có đánh giá nào cho tour này.</p>
-              ) : (
-                <div className={styles.reviewList}>
-                  {reviews.map((r) => (
-                    <div key={r.id} className={styles.reviewItem}>
-                      <div className={styles.reviewAuthor}>
-                        <div className={styles.reviewAvatar}>
-                          {r.reviewer_name?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                          <div className={styles.reviewerName}>{r.reviewer_name || 'Khách du lịch'}</div>
-                          <div className={styles.reviewDate}>
-                            {r.created_at} • <span className={styles.verifiedTag}>✓ Đã trải nghiệm tour</span>
-                          </div>
-                        </div>
-                        {r.rating > 0 && (
-                          <div className={styles.reviewRatingPill}>
-                            ⭐ {formatRatingToFive(r.rating)}
-                          </div>
-                        )}
-                      </div>
-                      <p className={styles.reviewText}>{r.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <TourReviews
+              tourId={tour.id}
+              averageRating={tour.avg_rating}
+              initialReviews={reviews}
+              initialTotal={reviewTotal}
+              onStatsChange={({ averageRating, reviewCount }) => {
+                setTour((current) => current ? { ...current, avg_rating: averageRating, review_count: reviewCount } : current)
+                setReviewTotal(reviewCount)
+              }}
+            />
           )}
         </div>
 
@@ -648,9 +660,10 @@ export function TourDetailPage() {
               <button
                 type="button"
                 className={styles.bookNowBtn}
-                onClick={openBooking}
+                disabled={schedule.length === 0}
+                onClick={() => openBooking()}
               >
-                <span>⚡ Đặt tour ngay</span>
+                <span>{schedule.length ? '⚡ Đặt tour ngay' : 'Chưa có ngày khởi hành'}</span>
               </button>
 
               <button
@@ -686,27 +699,39 @@ export function TourDetailPage() {
         <div className={styles.bookingModalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking() }}>
           <section className={styles.bookingModal} role="dialog" aria-modal="true" aria-labelledby="booking-title">
             <div className={styles.bookingModalHeader}>
-              <div><span className={styles.bookingEyebrow}>ĐẶT TOUR TRỰC TUYẾN</span><h2 id="booking-title">{createdBooking ? 'Quét QR để thanh toán' : 'Thông tin đặt tour'}</h2></div>
+              <div><span className={styles.bookingEyebrow}>ĐẶT TOUR TRỰC TUYẾN</span><h2 id="booking-title">{createdBooking ? createdBooking.checkout ? 'Thanh toán qua SePay' : 'Quét QR để thanh toán' : 'Thông tin đặt tour'}</h2></div>
               <button type="button" className={styles.bookingClose} onClick={closeBooking} aria-label="Đóng">×</button>
             </div>
             {createdBooking ? (
               <div className={styles.paymentPanel}>
                 <div className={createdBooking.payment_status === 'paid' ? styles.paymentSuccess : styles.paymentPending}>{createdBooking.payment_status === 'paid' ? 'Thanh toán đã được xác nhận.' : 'Đơn đang chờ thanh toán'}</div>
                 <p className={styles.paymentTourName}>{createdBooking.tour_name}</p>
-                {createdBooking.qr_url ? <img className={styles.paymentQr} src={createdBooking.qr_url} alt="Mã QR thanh toán SePay" /> : <div className={styles.paymentQrMissing}>Admin chưa cấu hình tài khoản ngân hàng SePay.</div>}
+                {createdBooking.checkout ? (
+                  <div className={styles.paymentGatewayBox}>
+                    <strong>Thanh toán an toàn qua SePay</strong>
+                    <span>Nhấn nút bên dưới để mở màn hình quét QR của SePay.</span>
+                    <button type="button" className={styles.paymentGatewayButton} onClick={openSepayCheckout}>
+                      Mở thanh toán QR SePay
+                    </button>
+                  </div>
+                ) : createdBooking.qr_url ? (
+                  <img className={styles.paymentQr} src={createdBooking.qr_url} alt="Mã QR thanh toán SePay" />
+                ) : (
+                  <div className={styles.paymentQrMissing}>Admin chưa cấu hình tài khoản ngân hàng SePay.</div>
+                )}
                 <div className={styles.paymentDetails}>
                   <div><span>Số tiền</span><strong>{formatPrice(createdBooking.total_amount)}</strong></div>
                   <div><span>Nội dung chuyển khoản</span><strong>{createdBooking.payment_code}</strong></div>
                   {createdBooking.bank.account_number && <div><span>Tài khoản nhận</span><strong>{createdBooking.bank.account_number} · {createdBooking.bank.account_name}</strong></div>}
                 </div>
-                <p className={styles.paymentHint}>Mở ứng dụng ngân hàng, quét mã QR và giữ nguyên nội dung chuyển khoản. Hệ thống sẽ tự cập nhật khi SePay nhận được tiền.</p>
+                <p className={styles.paymentHint}>{createdBooking.checkout ? 'SePay sẽ hiển thị mã QR và xử lý giao dịch. Trạng thái đơn chỉ được cập nhật sau khi backend nhận IPN hợp lệ.' : 'Mở ứng dụng ngân hàng, quét mã QR và giữ nguyên nội dung chuyển khoản. Hệ thống sẽ tự cập nhật khi SePay nhận được tiền.'}</p>
                 <div className={styles.paymentActions}><button type="button" className={styles.secondaryBookingButton} onClick={closeBooking}>Đóng</button></div>
               </div>
             ) : (
               <form className={styles.bookingForm} onSubmit={submitBooking}>
-                <div className={styles.bookingTourSummary}><strong>{tour.name}</strong><span>{formatPrice(tour.price)} / khách · {durationText}</span></div>
+                <div className={styles.bookingTourSummary}><strong>{tour.name}</strong><span>{formatPrice(selectedUnitPrice)} / khách · {durationText}</span></div>
                 <div className={styles.bookingFormGrid}>
-                  <label>Ngày khởi hành<input type="date" min={new Date().toISOString().slice(0, 10)} required value={bookingForm.departure_date} onChange={(event) => setBookingForm({ ...bookingForm, departure_date: event.target.value })} /></label>
+                  <label>Ngày khởi hành<select required value={bookingForm.departure_date} onChange={(event) => setBookingForm({ ...bookingForm, departure_date: event.target.value })}><option value="">Chọn ngày khởi hành</option>{schedule.map((row) => <option key={row.date} value={row.date} disabled={!row.available}>{formatScheduleDate(row.date)} · {formatPrice(row.price > 0 ? row.price : tour.price)}{row.available ? '' : ' · Hết chỗ'}</option>)}</select></label>
                   <label>Số khách<input type="number" min="1" max="20" required value={bookingForm.guest_count} onChange={(event) => setBookingForm({ ...bookingForm, guest_count: Number(event.target.value) })} /></label>
                   <label>Họ và tên<input required maxLength={255} value={bookingForm.contact_name} onChange={(event) => setBookingForm({ ...bookingForm, contact_name: event.target.value })} /></label>
                   <label>Email<input type="email" required maxLength={255} value={bookingForm.contact_email} onChange={(event) => setBookingForm({ ...bookingForm, contact_email: event.target.value })} /></label>
@@ -714,7 +739,7 @@ export function TourDetailPage() {
                   <label className={styles.bookingFullField}>Ghi chú thêm<textarea maxLength={1000} rows={3} value={bookingForm.note} onChange={(event) => setBookingForm({ ...bookingForm, note: event.target.value })} /></label>
                 </div>
                 {bookingError && <p className={styles.bookingError}>{bookingError}</p>}
-                <div className={styles.bookingFormFooter}><span>Tổng dự kiến: <strong>{formatPrice(tour.price * bookingForm.guest_count)}</strong></span><button type="submit" className={styles.bookNowBtn} disabled={bookingLoading}>{bookingLoading ? 'Đang tạo booking...' : 'Tiếp tục thanh toán QR'}</button></div>
+                 <div className={styles.bookingFormFooter}><span>Tổng dự kiến: <strong>{formatPrice(selectedUnitPrice * bookingForm.guest_count)}</strong></span><button type="submit" className={styles.bookNowBtn} disabled={bookingLoading || schedule.length === 0}>{bookingLoading ? 'Đang tạo booking...' : 'Tiếp tục thanh toán QR'}</button></div>
               </form>
             )}
           </section>

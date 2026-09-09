@@ -58,6 +58,15 @@ def parse_rating(value) -> float:
         return 0.0
 
 
+def normalize_rating_to_ten(value, review_count: int = 0) -> float:
+    rating = parse_rating(value)
+    if rating <= 0:
+        return 8.0 if review_count > 0 else 0.0
+    if rating <= 5:
+        return min(rating * 2, 10.0)
+    return min(rating, 10.0)
+
+
 def extract_tour_id(raw: dict) -> int:
     """Pull the numeric id off the BestPrice filename or URL tail."""
     for source in (raw.get("url") or "",):
@@ -166,6 +175,8 @@ def normalize(raw: dict) -> dict:
         for row in (raw.get("schedule") or [])
     ]
     transport = raw.get("transport") or {}
+    review_count = max(0, int(raw.get("review_count", 0) or 0))
+    avg_rating = normalize_rating_to_ten(raw.get("rating"), review_count)
     return {
         "id": tour_id,
         "name": raw.get("title") or "(Chưa có tiêu đề)",
@@ -174,8 +185,10 @@ def normalize(raw: dict) -> dict:
         "original_price": parse_vnd_price(raw.get("original_price")) or None,
         "duration": duration.get("days", 0) or 0,
         "duration_label": duration.get("label"),
-        "avg_rating": parse_rating(raw.get("rating")),
-        "review_count": raw.get("review_count", 0) or 0,
+        "avg_rating": avg_rating,
+        "review_count": review_count,
+        "imported_avg_rating": avg_rating,
+        "imported_review_count": review_count,
         "image_url": (raw.get("gallery") or [None])[0],
         "description": raw.get("description"),
         "source": "bestprice",
@@ -202,12 +215,14 @@ def normalize(raw: dict) -> dict:
 UPSERT_TOUR_SQL = """
 INSERT INTO tours (
     name, destination, price, original_price, duration, duration_label,
-    description, avg_rating, review_count, source, source_url, image_url,
+    description, avg_rating, review_count, imported_avg_rating, imported_review_count,
+    source, source_url, image_url,
     highlights, places, topics, gallery,
     itinerary, included, excluded, schedule, transport
 ) VALUES (
     %(name)s, %(destination)s, %(price)s, %(original_price)s, %(duration)s, %(duration_label)s,
-    %(description)s, %(avg_rating)s, %(review_count)s, %(source)s, %(source_url)s, %(image_url)s,
+    %(description)s, %(avg_rating)s, %(review_count)s, %(imported_avg_rating)s, %(imported_review_count)s,
+    %(source)s, %(source_url)s, %(image_url)s,
     %(highlights)s, %(places)s, %(topics)s, %(gallery)s,
     %(itinerary)s, %(included)s, %(excluded)s, %(schedule)s, %(transport)s
 )
@@ -219,8 +234,18 @@ ON CONFLICT (source_url) DO UPDATE SET
     duration = EXCLUDED.duration,
     duration_label = EXCLUDED.duration_label,
     description = EXCLUDED.description,
-    avg_rating = EXCLUDED.avg_rating,
-    review_count = EXCLUDED.review_count,
+    avg_rating = CASE
+        WHEN EXISTS (SELECT 1 FROM reviews r WHERE r.tour_id = tours.id AND r.user_id IS NOT NULL)
+            THEN tours.avg_rating
+        ELSE EXCLUDED.avg_rating
+    END,
+    review_count = CASE
+        WHEN EXISTS (SELECT 1 FROM reviews r WHERE r.tour_id = tours.id AND r.user_id IS NOT NULL)
+            THEN tours.review_count
+        ELSE EXCLUDED.review_count
+    END,
+    imported_avg_rating = EXCLUDED.imported_avg_rating,
+    imported_review_count = EXCLUDED.imported_review_count,
     image_url = EXCLUDED.image_url,
     highlights = EXCLUDED.highlights,
     places = EXCLUDED.places,
@@ -268,7 +293,7 @@ def upsert_tour(cur, normalized: dict) -> int | None:
 def insert_reviews(cur, tour_id: int, raw: dict, replace_existing: bool) -> int:
     reviews = raw.get("reviews") or []
     if replace_existing:
-        cur.execute("DELETE FROM reviews WHERE tour_id = %s", (tour_id,))
+        cur.execute("DELETE FROM reviews WHERE tour_id = %s AND user_id IS NULL", (tour_id,))
     inserted = 0
     for r in reviews:
         content = (r.get("content") or "").strip()
@@ -279,7 +304,7 @@ def insert_reviews(cur, tour_id: int, raw: dict, replace_existing: bool) -> int:
             (
                 tour_id,
                 content,
-                parse_rating(r.get("score")),
+                normalize_rating_to_ten(r.get("score"), 1),
                 r.get("name") or "Người dùng ẩn danh",
                 normalize_date(r.get("date") or "") or None,
             ),

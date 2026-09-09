@@ -1,0 +1,468 @@
+.page {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 1rem 0 3rem;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.eyebrow {
+  margin: 0 0 .45rem;
+  color: var(--color-accent);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  letter-spacing: -.04em;
+}
+
+.header p {
+  max-width: 650px;
+  margin: .55rem 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.exploreButton,
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 .9rem;
+  border-radius: 9px;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.exploreButton,
+.primaryButton {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.exploreButton:hover,
+.primaryButton:hover {
+  filter: brightness(.95);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.secondaryButton:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.filters label {
+  display: grid;
+  min-width: 210px;
+  gap: .35rem;
+  color: var(--color-text-secondary);
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.filters select {
+  height: 38px;
+  padding: 0 .65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: .82rem;
+}
+
+.filters select:focus {
+  outline: 2px solid var(--color-accent-subtle);
+  border-color: var(--color-accent);
+}
+
+.clearButton,
+.textDanger {
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clearButton { min-height: 38px; padding: 0 .45rem; }
+.textDanger { padding: 0 .25rem; color: var(--color-error); }
+.textDanger:disabled { cursor: wait; opacity: .55; }
+
+.error {
+  margin-bottom: 1rem;
+  padding: .75rem .9rem;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: .84rem;
+}
+
+.listHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.25rem 0 .75rem;
+  color: var(--color-text-secondary);
+  font-size: .8rem;
+}
+
+.listHeader strong { color: var(--color-text); }
+
+.bookingList {
+  display: grid;
+  gap: .85rem;
+}
+
+.bookingCard {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.bookingCode {
+  color: var(--color-accent);
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.cardTop h2 {
+  max-width: 700px;
+  margin: .3rem 0 .2rem;
+  color: var(--color-text);
+  font-size: 1.03rem;
+  line-height: 1.35;
+}
+
+.cardTop p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: .82rem;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-end;
+  gap: .35rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 .55rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.badgeSuccess { background: #dcfce7; color: #166534; }
+.badgePending { background: #fff7ed; color: #c2410c; }
+.badgeNeutral { background: var(--color-bg); color: var(--color-text-secondary); }
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+}
+
+.metaGrid > div,
+.detailGrid > div,
+.paymentRows > div,
+.paymentSummary > div {
+  display: grid;
+  gap: .2rem;
+  min-width: 0;
+  padding: .65rem .7rem;
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.metaGrid span,
+.detailGrid span,
+.paymentRows span,
+.paymentSummary span,
+.note > span {
+  color: var(--color-text-muted);
+  font-size: .7rem;
+}
+
+.metaGrid strong,
+.detailGrid strong,
+.paymentRows strong,
+.paymentSummary strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: .82rem;
+}
+
+.amount { color: var(--color-accent) !important; }
+
+.cardActions,
+.modalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .65rem;
+  padding-top: .15rem;
+}
+
+.loadingList { display: grid; gap: .85rem; }
+
+.skeleton {
+  min-height: 190px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--color-surface), var(--color-bg), var(--color-surface));
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: .55rem;
+  padding: 4rem 1.5rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  font-size: 1.5rem;
+}
+
+.empty h2 { margin: .25rem 0 0; font-size: 1.05rem; }
+.empty p { margin: 0 0 .75rem; color: var(--color-text-secondary); font-size: .85rem; }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .8rem;
+  padding: 1rem 0;
+  color: var(--color-text-secondary);
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.pagination button {
+  display: grid;
+  width: 36px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.pagination button:disabled { cursor: not-allowed; opacity: .45; }
+
+.modalBackdrop {
+  position: fixed;
+  z-index: 300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .48);
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: min(850px, calc(100vh - 2rem));
+  overflow-y: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 15px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xl);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.modalHeader h2 { margin: .2rem 0 0; font-size: 1.2rem; }
+
+.closeButton {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeButton:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.detailLoading { padding: 2rem 0; color: var(--color-text-secondary); text-align: center; }
+
+.detailTour {
+  display: grid;
+  gap: .2rem;
+  margin-bottom: 1rem;
+  padding: .8rem .9rem;
+  border-radius: 9px;
+  background: var(--color-bg);
+}
+
+.detailTour strong { color: var(--color-text); line-height: 1.4; }
+.detailTour span { color: var(--color-text-secondary); font-size: .8rem; }
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+
+.note,
+.paymentBox,
+.paymentSummary {
+  margin-top: .85rem;
+  padding: .9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.note p { margin: .35rem 0 0; color: var(--color-text-secondary); font-size: .82rem; line-height: 1.5; white-space: pre-wrap; }
+
+.paymentBox { border-color: var(--color-accent-border); background: var(--color-bg); }
+
+.paymentBoxHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .8rem;
+}
+
+.paymentBox h3,
+.paymentSummary h3 { margin: 0; font-size: .92rem; }
+.paymentBoxHeader p { margin: .25rem 0 0; color: var(--color-text-secondary); font-size: .75rem; }
+
+.paymentBox > .primaryButton { width: 100%; margin-bottom: .8rem; }
+
+.qr {
+  display: block;
+  width: min(260px, 100%);
+  aspect-ratio: 1;
+  margin: 0 auto .8rem;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.paymentMissing { margin: 0 0 .8rem; color: var(--color-text-secondary); font-size: .8rem; text-align: center; }
+.paymentRows,
+.paymentSummary { display: grid; gap: .5rem; }
+.paymentHint { margin: .75rem 0 0; color: var(--color-text-secondary); font-size: .75rem; line-height: 1.5; }
+.paymentSummary h3 { margin-bottom: .15rem; }
+.modalActions { margin-top: 1rem; justify-content: flex-end; }
+
+@media (max-width: 700px) {
+  .header { align-items: stretch; flex-direction: column; }
+  .exploreButton { width: 100%; }
+  .cardTop { flex-direction: column; }
+  .badges { justify-content: flex-start; }
+  .metaGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .page { padding-top: .5rem; }
+  .header { padding: 1.1rem; }
+  .filters label { min-width: 100%; }
+  .metaGrid,
+  .detailGrid { grid-template-columns: 1fr; }
+  .cardActions,
+  .modalActions { justify-content: stretch; }
+  .cardActions > *,
+  .modalActions > * { flex: 1; }
+  .paymentBoxHeader { align-items: stretch; flex-direction: column; }
+}

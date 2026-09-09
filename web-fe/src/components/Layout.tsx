@@ -9,6 +9,7 @@ const TEXT = {
   explore: 'Khám phá',
   aiConsult: 'Tư vấn AI',
   profile: 'H\u1ed3 s\u01a1 c\u00e1 nh\u00e2n',
+  bookings: 'L\u1ecbch s\u1eed \u0111\u1eb7t tour',
   favorites: 'Tour y\u00eau th\u00edch',
   recommendations: 'G\u1ee3i \u00fd cho t\u00f4i',
   logout: '\u0110\u0103ng xu\u1ea5t',
@@ -18,6 +19,7 @@ const TEXT = {
   footer: '\u0110\u1ed3 \u00e1n t\u1ed1t nghi\u1ec7p - H\u1ec7 th\u1ed1ng g\u1ee3i \u00fd tour du l\u1ecbch AI',
   chevron: '\u25be',
   profileIcon: '\u{1f464}',
+  bookingsIcon: '\ud83d\udccb',
   favoritesIcon: '\u2661',
   recommendationsIcon: '\u2728',
   logoutIcon: '\u21aa',
@@ -125,6 +127,10 @@ export function Layout() {
                         <Link to="/profile" className={styles.dropdownItem} onClick={() => setIsUserMenuOpen(false)}>
                           <span>{TEXT.profileIcon}</span>
                           {TEXT.profile}
+                        </Link>
+                        <Link to="/bookings" className={styles.dropdownItem} onClick={() => setIsUserMenuOpen(false)}>
+                          <span>{TEXT.bookingsIcon}</span>
+                          {TEXT.bookings}
                         </Link>
                         <Link to="/favorites" className={styles.dropdownItem} onClick={() => setIsUserMenuOpen(false)}>
                           <span>{TEXT.favoritesIcon}</span>

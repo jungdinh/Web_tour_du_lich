@@ -1,507 +1,302 @@
 # Kiến trúc hệ thống — Hệ thống gợi ý tour du lịch AI
 
+> Cập nhật theo source thực tế ngày **07/09/2026**. Bảng API, migration và checklist triển khai chi tiết hơn nằm trong [`docs/Cap_nhat_du_an.md`](./Cap_nhat_du_an.md).
+
 ## 1. Kiến trúc được chọn: Service-Based Architecture
 
-### So sánh các kiến trúc
-
-| Kiến trúc | Mô tả | Phù hợp? | Lý do |
-|-----------|-------|-----------|-------|
-| **Monolith** | Tất cả code gộp 1 codebase | ❌ | 2 ngôn ngữ (Python + Node.js) → không thể gộp chung |
-| **Microservices** | Chia thành hàng chục service nhỏ | ❌ | Quá phức tạp cho 1 người (cần Service Discovery, API Gateway, Message Queue, Kubernetes) |
-| **Serverless** | AWS Lambda / Cloud Functions | ❌ | Recommendation Engine xử lý nặng, cold start chậm, giới hạn thời gian chạy |
-| **MVC / Layered** | Chia tầng trong 1 app | ⚠️ | Phù hợp bên trong 1 service, không giải quyết multi-language |
-| **Service-Based** | 2-3 service lớn, giao tiếp REST | ✅ | Trung gian giữa Monolith và Microservices |
-
-### Vì sao chọn Service-Based Architecture?
-
-**Service-Based Architecture** là kiến trúc **trung gian** giữa Monolith và Microservices:
-
-- Tách hệ thống thành **2-3 service lớn** (không phải hàng chục service nhỏ).
-- Mỗi service chạy độc lập, giao tiếp qua **REST API**.
-- Đơn giản hơn Microservices nhưng vẫn có **tách biệt rõ ràng**.
-- Phù hợp với dự án **1 người phát triển** sử dụng **2 ngôn ngữ khác nhau**.
-- Đủ sức phục vụ quy mô **~1000 user** mà không cần infrastructure phức tạp.
-
----
-
-## 2. Sơ đồ kiến trúc hệ thống
-
-```text
-┌─────────────────────────────────────────────────────┐
-│                    FRONTEND                         │
-│               React (Vite)                          │
-│            (Giao diện người dùng)                    │
-└───────────────────┬─────────────────────────────────┘
-                    │ HTTP Request
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  WEB SERVICE                        │
-│              Node.js (Express/NestJS)               │
-│                                                     │
-│  • REST API cho Frontend                            │
-│  • Authentication (JWT)                             │
-│  • CRUD (Tour, User, Review)                        │
-│  • Ghi log hành vi user (user_actions)              │
-│  • Gọi AI Service khi cần gợi ý                    │
-└───────────────────┬─────────────────────────────────┘
-                    │ Internal REST API
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  AI SERVICE                         │
-│              Python (FastAPI)                       │
-│                                                     │
-│  • Recommendation Engine (Cosine Similarity)        │
-│  • LLM Integration (Gemini API)                     │
-│  • Slot Filling (hỏi ngược user)                    │
-│  • Tag Generation (phân tích review → sinh tag)     │
-│  • Cập nhật User Profile từ hành vi                 │
-└───────────────────┬─────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  DATABASE                           │
-│          PostgreSQL (+ pgvector extension)          │
-│                                                     │
-│  tours, reviews, tour_tags, users,                  │
-│  user_preferences, user_actions                     │
-└─────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────┐
-│              CRAWLER (Batch Job)                    │
-│          Python (Scrapy / BeautifulSoup)            │
-│                                                     │
-│  • Thu thập dữ liệu từ Klook, Traveloka            │
-│  • Chạy định kỳ (không chạy real-time)              │
-│  • Ghi trực tiếp vào Database                       │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-## 3. Chi tiết từng Service
-
-### 3.1 Frontend — React (Vite)
-
-| Chức năng | Mô tả |
-|-----------|-------|
-| Trang chủ | Hiển thị tour phổ biến, tour gợi ý |
-| Tìm kiếm | Tìm tour theo keyword, bộ lọc |
-| Chat AI | Giao diện hỏi đáp với LLM (Slot Filling) |
-| Chi tiết tour | Thông tin tour, review, tag |
-| Tài khoản | Đăng ký, đăng nhập, lịch sử |
-| Tour yêu thích | Lưu tour, xem lại |
-
-Giao tiếp với Web Service qua **REST API** (thông thường) và **SSE (Server-Sent Events) hoặc WebSocket** (để Streaming text trả về từ LLM dưới dạng typing effect, gia tăng tối đa UX).
-
-### 3.2 Web Service — Node.js (Express/NestJS)
-
-| Chức năng | API Endpoint (ví dụ) |
-|-----------|----------------------|
-| Auth | `POST /api/auth/login`, `POST /api/auth/register` |
-| Tour CRUD | `GET /api/tours`, `GET /api/tours/:id` |
-| Review | `GET /api/tours/:id/reviews` |
-| User Actions | `POST /api/actions` (ghi log click, view, save) |
-| Gợi ý tour | `GET /api/recommendations` → gọi AI Service |
-| Chat | `POST /api/chat` → gọi AI Service |
-| Tìm kiếm | `GET /api/tours/search?q=...&destination=...&tag=...` |
-
-**Vai trò chính**: Là cầu nối giữa Frontend và AI Service. Xử lý authentication, validation, ghi log hành vi, và forward request đến AI Service khi cần.
-
-### 3.3 AI Service — Python (FastAPI)
-
-| Chức năng | API Endpoint (ví dụ) |
-|-----------|----------------------|
-| Gợi ý tour | `POST /ai/recommend` |
-| Chat / Slot Filling | `POST /ai/chat` |
-| Sinh tag từ review | `POST /ai/generate-tags` |
-| Cập nhật User Profile | `POST /ai/update-profile` |
-| Health check | `GET /ai/health` |
-
-**Vai trò chính**: Chứa toàn bộ logic AI — Recommendation Engine, LLM, Tag Generation. Chỉ Web Service mới có quyền gọi đến AI Service (không expose trực tiếp ra ngoài).
-
-### 3.4 Crawler — Python (Scrapy / BeautifulSoup)
-
-| Chức năng | Mô tả |
-|-----------|-------|
-| Crawl tour | Thu thập tour từ Klook, Traveloka |
-| Crawl review | Thu thập review tiếng Việt |
-| Preprocessing | Làm sạch, chuẩn hóa, lọc trùng lặp, lọc ngôn ngữ |
-| Lưu database | Ghi vào bảng `tours`, `reviews` |
-| Hạn chế bị Ban | Sử dụng Proxy Rotation, User-Agent Spoofing và Request Delays (tránh scrape quá nhanh) |
-
-**Không phải service chạy liên tục**. Crawler chạy dạng **batch job** (chạy 1 lần hoặc định kỳ hàng tuần) để cập nhật dữ liệu. Do đặc thù các nền tảng OTA bảo mật rất cao, cơ chế chống ban (Anti-ban) trong Crawler là bắt buộc.
-
----
-
-## 4. Luồng dữ liệu chính
-
-### 4.1 Luồng gợi ý tour (Recommendation Flow)
-
-```text
-User mở trang web
-      │
-      ▼
-Frontend gửi request → Web Service
-      │
-      ▼
-Web Service kiểm tra User Profile
-      │
-      ├─ User mới (chưa có profile) → Trả về tour phổ biến
-      │
-      └─ User có profile → Gọi AI Service
-                                │
-                                ▼
-                        AI Service nhận User Profile
-                                │
-                                ▼
-                        Cosine Similarity (User Profile vs Tour Profile)
-                                │
-                                ▼
-                        Xếp hạng → Top-N Tour
-                                │
-                                ▼
-                        Trả kết quả về Web Service
-                                │
-                                ▼
-                        Web Service trả về Frontend
-                                │
-                                ▼
-                        Hiển thị danh sách tour gợi ý
-```
-
-### 4.2 Luồng chat AI (Slot Filling Flow)
-
-```text
-User gõ: "Tôi muốn đi Đà Lạt cùng vợ"
-      │
-      ▼
-Frontend gửi message → Web Service
-      │
-      ▼
-Web Service forward → AI Service
-      │
-      ▼
-AI Service gọi LLM (Gemini)
-      │
-      ▼
-LLM trích xuất: destination=Đà Lạt, couple=true
-      │
-      ├─ Thiếu thông tin (budget, duration)
-      │   → LLM hỏi ngược: "Ngân sách bao nhiêu? Đi mấy ngày?"
-      │   → Trả về Frontend → User trả lời → Lặp lại
-      │
-      └─ Đủ thông tin
-          → Tạo User Profile tạm thời
-          → Gọi Recommendation Engine
-          → LLM giải thích lý do gợi ý (Streaming response)
-          → Frontend hiển thị kết quả dần dần qua SSE (Typing effect)
-```
-
-### 4.3 Luồng thu thập hành vi (Implicit Feedback Flow)
-
-```text
-User click vào Tour A
-      │
-      ▼
-Frontend gửi action → Web Service
-      │
-      ▼
-Web Service ghi vào bảng user_actions
-  (user_id, tour_id, action_type="click", timestamp)
-      │
-      ▼
-Web Service gọi AI Service → Cập nhật User Profile
-      │
-      ▼
-AI Service lấy tag của Tour A
-  (beach: 0.80, food: 0.60, family: 0.45)
-      │
-      ▼
-Cộng trọng số vào user_preferences
-  (với hệ số theo loại action: click=nhẹ, save=mạnh)
-      │
-      ▼
-User Profile được cập nhật
-→ Lần gợi ý tiếp theo sẽ chính xác hơn
-```
-
-### 4.4 Luồng xử lý dữ liệu (Data Pipeline)
-
-```text
-Crawler chạy (batch job)
-      │
-      ▼
-Thu thập tour + review từ Klook, Traveloka
-      │
-      ▼
-Data Preprocessing
-  • Deduplication
-  • Chuẩn hóa giá, địa điểm
-  • Lọc review không phải tiếng Việt
-  • Lọc review rác/spam
-      │
-      ▼
-Lưu vào Database (tours, reviews)
-      │
-      ▼
-AI Service chạy Tag Generation
-  • Đọc review từ DB
-  • LLM phân tích → sinh tag (theo Tag Taxonomy)
-  • Tính trọng số tag
-  • Lưu vào tour_tags
-      │
-      ▼
-Tour Profile Vector sẵn sàng
-→ Recommendation Engine có thể sử dụng
-```
-
----
-
-## 5. Giao tiếp giữa các Service
-
-| Từ | Đến | Giao thức | Mô tả |
-|----|-----|-----------|-------|
-| Frontend | Web Service | HTTP REST (JSON) | Mọi request từ user |
-| Frontend | Web Service | WebSocket *(tùy chọn)* | Chat real-time |
-| Web Service | AI Service | HTTP REST (JSON) | Gọi recommendation, chat, update profile |
-| Crawler | Database | SQL (direct) | Ghi dữ liệu crawl |
-| Web Service | Database | SQL (ORM) | CRUD operations |
-| AI Service | Database | SQL (ORM) | Đọc tour/tag, cập nhật user profile |
-
-### Quy tắc giao tiếp
-
-- **Frontend KHÔNG gọi trực tiếp AI Service** → Luôn đi qua Web Service.
-- **AI Service KHÔNG expose ra internet** → Chỉ Web Service mới gọi được (internal network).
-- **Crawler chạy độc lập** → Không phụ thuộc vào Web Service hay AI Service.
-
----
-
-## 6. Tối ưu hiệu suất
-
-### 6.1 Tìm kiếm Vector bản địa với `pgvector`
-
-Thay vì tính toán Cosine Similarity bằng code Python thủ công cho từng request, hệ thống sẽ tận dụng sức mạnh tốc độ ở cấp cơ sở dữ liệu:
-
-- Tích hợp extension **`pgvector`** vào PostgreSQL.
-- Sau khi có Tag Generation/Embedding, lưu thẳng vector vào kiểu dữ liệu `vector` trực tiếp trong Database.
-- AI Service chỉ việc gọi SQL query (dùng toán tử cosine distance `<=>`) để DB xử lý và trả về ngay kết quả xếp hạng. Tốc độ nhánh hơn nhiều lần so với đẩy dữ liệu lên memory của Python để tính toán.
-
-Khi nào cập nhật lại vector: Khi có review mới hoặc crawler chạy lại.
-
-### 6.2 Database Indexing
-
-| Bảng | Index | Lý do |
-|------|-------|-------|
-| `tours` | `destination` | Lọc theo địa điểm nhanh |
-| `tours` | `price` | Lọc theo khoảng giá |
-| `tours` | `avg_rating` | Sắp xếp theo rating |
-| `reviews` | `tour_id` | Truy vấn review theo tour |
-| `tour_tags` | `tour_id` | Lấy tag theo tour |
-| `user_actions` | `user_id, created_at` | Truy vấn hành vi theo user |
-| `user_preferences` | `user_id` | Lấy profile user |
-
-### 6.3 Pagination
-
-Tất cả API trả về danh sách **phải có pagination**:
-
-```
-GET /api/tours?page=1&limit=20
-GET /api/tours/:id/reviews?page=1&limit=10
-GET /api/recommendations?top=10
-```
-
-Không bao giờ trả về toàn bộ dữ liệu trong 1 request.
-
-### 6.4 API Response Caching (Web Service)
-
-Web Service cache một số kết quả thường xuyên truy cập:
-
-| Cache gì | TTL (Time to Live) | Khi nào invalidate |
-|----------|-------|-----|
-| Danh sách tour phổ biến | 1 giờ | Khi crawler chạy lại |
-| Chi tiết tour | 30 phút | Khi có review mới |
-| Kết quả tìm kiếm (theo query) | 15 phút | Tự hết hạn |
-
-Dùng **in-memory cache** (Node.js `node-cache`) cho quy mô 1000 user. Nâng lên Redis khi cần scale.
-
-### 6.5 Batch Update User Profile
-
-Không cập nhật User Profile **mỗi lần** user click. Thay vào đó:
-
-- Ghi log hành vi vào `user_actions` ngay lập tức (nhẹ, nhanh).
-- **Mỗi 5-10 phút** hoặc khi user **mở trang recommendations**, AI Service mới tổng hợp hành vi gần đây → cập nhật `user_preferences`.
-
-Lý do: Giảm số lần gọi AI Service, tránh tốn tài nguyên tính toán.
-
----
-
-## 7. Bảo mật cơ bản
-
-### 7.1 Authentication & Authorization
-
-| Thành phần | Giải pháp |
-|------------|-----------|
-| **Auth method** | JWT (JSON Web Token) |
-| **Password** | Hash bằng bcrypt (không lưu plain text) |
-| **Token expiry** | Access token: 1 giờ, Refresh token: 7 ngày |
-| **Role** | User (mặc định), Admin (quản lý) |
-
-### 7.2 Bảo vệ API
-
-| Biện pháp | Mô tả |
-|-----------|-------|
-| **CORS** | Chỉ cho phép Frontend domain gọi API |
-| **Rate Limiting** | Giới hạn request/phút cho mỗi IP (chống spam) |
-| **Input Validation** | Validate tất cả input từ user (XSS, SQL Injection) |
-| **AI Service internal** | AI Service chỉ nhận request từ Web Service (kiểm tra API key hoặc IP whitelist) |
-
-### 7.3 Environment Variables
-
-Không hardcode thông tin nhạy cảm trong code:
-
-```
-DATABASE_URL=postgresql://user:pass@localhost:5432/tourdb
-GEMINI_API_KEY=xxx
-JWT_SECRET=xxx
-AI_SERVICE_URL=http://localhost:8000
-```
-
-Dùng file `.env` + thư viện `dotenv`.
-
----
-
-## 8. Cấu trúc thư mục dự kiến
-
-```
-project/
-├── frontend/                  # React (Vite)
-│   ├── src/
-│   │   ├── components/        # UI components
-│   │   ├── pages/             # Các trang
-│   │   ├── hooks/             # Custom hooks
-│   │   ├── services/          # Gọi API (axios/fetch)
-│   │   ├── context/           # React Context (auth, theme)
-│   │   └── styles/            # CSS
-│   ├── public/                # Static assets
-│   └── package.json
-│
-├── web-service/               # Node.js (Express/NestJS)
-│   ├── src/
-│   │   ├── controllers/       # Xử lý request
-│   │   ├── routes/            # Định nghĩa API routes
-│   │   ├── middlewares/       # Auth, validation, rate-limit
-│   │   ├── models/            # Database models (ORM)
-│   │   ├── services/          # Business logic + gọi AI Service
-│   │   ├── cache/             # In-memory cache logic
-│   │   └── config/            # Environment config
-│   └── package.json
-│
-├── ai-service/                # Python (FastAPI)
-│   ├── app/
-│   │   ├── api/               # API endpoints
-│   │   ├── engine/            # Recommendation Engine
-│   │   │   ├── cosine.py      # Cosine Similarity
-│   │   │   └── profile.py     # User/Tour Profile builder
-│   │   ├── llm/               # LLM integration (Gemini)
-│   │   ├── tag_generator/     # Tag generation logic
-│   │   ├── models/            # Database models
-│   │   └── config/            # Environment config
-│   └── requirements.txt
-│
-├── crawler/                   # Python (Scrapy/BeautifulSoup)
-│   ├── spiders/               # Crawler scripts
-│   │   ├── klook_spider.py
-│   │   └── traveloka_spider.py
-│   ├── preprocessing/         # Data cleaning
-│   │   ├── dedup.py           # Deduplication
-│   │   ├── normalize.py       # Chuẩn hóa giá, địa điểm
-│   │   └── filter.py          # Lọc review rác, ngôn ngữ
-│   └── requirements.txt
-│
-├── database/
-│   ├── migrations/            # SQL migration files
-│   └── seed/                  # Dữ liệu mẫu
-│
-├── .env.example               # Template biến môi trường
-├── docker-compose.yml         # Chạy tất cả services (tùy chọn)
-└── README.md
-```
-
----
-
-## 9. Deployment
-
-### Phát triển (Development)
-
-| Service | Cách chạy | Port mặc định |
-|---------|-----------|---------------|
-| Frontend | `npm run dev` | 3000 |
-| Web Service | `npm run dev` | 4000 |
-| AI Service | `uvicorn app.main:app --reload` | 8000 |
-| Database | PostgreSQL local hoặc Docker | 5432 |
-
-### Production
-
-| Phương án | Mô tả | Phù hợp khi |
-|-----------|-------|-------------|
-| **Local** | Chạy trực tiếp trên máy | Demo đồ án |
-| **Docker Compose** | Gói tất cả service vào containers | Demo chuyên nghiệp, dễ setup trên máy khác |
-| **Cloud** | Deploy lên Render / Railway / GCP | Muốn truy cập từ xa, cho giảng viên test |
-
----
-
-## 10. Lộ trình mở rộng (Scaling Roadmap)
-
-| Mốc | Cần thêm gì | Lý do |
-|-----|-------------|-------|
-| **< 1.000 user** | Không cần gì thêm | SBA gốc đủ xử lý |
-| **1.000 - 10.000 user** | Redis cache + Nginx reverse proxy | Cache recommendation, phân tải request |
-| **10.000 - 100.000 user** | Message Queue + API Gateway + Auto-scaling | Xử lý async, rate limiting, load balancing |
-| **> 100.000 user** | Cân nhắc Microservices | Tách service nhỏ hơn, team lớn hơn |
-
-### Kiến trúc nâng cấp (khi cần scale lên 10.000+ user)
+### So sánh các lựa chọn
+
+| Kiến trúc | Phù hợp? | Lý do |
+|---|:---:|---|
+| Monolith | ❌ | Hệ thống dùng cả TypeScript/Node.js và Python/FastAPI; gộp chung làm giảm ranh giới công nghệ. |
+| Microservices | ❌ | Quá nhiều service và hạ tầng cho quy mô đồ án một người. |
+| Serverless toàn bộ | ❌ | Recommendation/chat có truy vấn database và phụ thuộc LLM, cần kiểm soát timeout/fallback. |
+| MVC/Layered đơn nhất | ⚠️ | Hữu ích trong từng service nhưng không giải quyết việc tách Node.js và Python. |
+| **Service-Based** | **✅** | Chỉ có các service lớn, giao tiếp REST, dễ chạy local và dễ deploy riêng. |
+
+Service-Based Architecture cho phép:
+
+- Frontend chỉ biết Web Service.
+- Web Service chịu trách nhiệm authentication, validation, CRUD, booking và orchestration.
+- AI Service cô lập logic recommendation/LLM và dùng chung PostgreSQL.
+- Crawler chạy batch, không làm chậm request của người dùng.
+
+## 2. Sơ đồ triển khai hiện tại
 
 ```text
 ┌──────────────────────────────────────────────────────┐
-│                      CLIENT                          │
-│                  React (Vite)                         │
-└──────────────────┬───────────────────────────────────┘
-                   │
-                   ▼
+│              FRONTEND — React/Vite :5174             │
+│  Search · Recommendation · Chat · Tour detail · Admin│
+└───────────────────────┬──────────────────────────────┘
+                        │ REST/JSON
+                        ▼
 ┌──────────────────────────────────────────────────────┐
-│              API GATEWAY (Nginx)                     │
-│   • Rate Limiting  • Load Balancing  • SSL           │
-└──────────────────┬───────────────────────────────────┘
-                   │
-        ┌──────────┴──────────┐
-        ▼                     ▼
-┌───────────────┐    ┌────────────────┐
-│  WEB SERVICE  │    │  AI SERVICE    │
-│  Node.js      │    │  Python        │
-└───────┬───────┘    └───────┬────────┘
-        │                    │
-        ├────────┬───────────┤
-        ▼        ▼           ▼
-┌──────────┐ ┌───────┐ ┌──────────┐
-│PostgreSQL│ │ Redis │ │  Queue   │
-│  (Data)  │ │(Cache)│ │(Async)   │
-└──────────┘ └───────┘ └──────────┘
+│           WEB SERVICE — Node.js/Express :3000        │
+│ Auth/JWT · CORS · Rate limit · CRUD · Booking/SePay  │
+│ Review · Admin · Action logging · AI orchestration   │
+└───────────────┬──────────────────────┬───────────────┘
+                │ SQL                  │ REST + X-API-Key
+                ▼                      ▼
+┌────────────────────────┐   ┌─────────────────────────┐
+│ PostgreSQL :5432        │   │ AI SERVICE — FastAPI :8000│
+│ tours/users/reviews/... │◄──│ ranking · chat · tags    │
+└────────────▲───────────┘   └─────────────────────────┘
+             │
+┌────────────┴─────────────┐
+│ CRAWLER / SEED — Python  │
+│ batch chuẩn hóa dữ liệu  │
+└──────────────────────────┘
 ```
 
-Kiến trúc nâng cấp này **không cần triển khai ngay** — chỉ áp dụng khi hệ thống thực sự cần scale.
+### Cổng local
 
----
+| Thành phần | Port |
+|---|---:|
+| Frontend | `5174` |
+| Web Service | `3000` |
+| AI Service | `8000` |
+| PostgreSQL | `5432` |
 
-## 11. Tổng kết
+`PORT` của backend nên được khai báo rõ trong `.env`. Nếu deploy Railway, Railway có thể inject port runtime.
 
-| Tiêu chí | Lựa chọn |
-|----------|---------|
-| **Kiến trúc** | Service-Based Architecture |
-| **Quy mô thiết kế** | ~1.000 user |
-| **Số service** | 3 (Frontend + Web Service + AI Service) + 1 Crawler batch |
-| **Giao tiếp** | REST API (JSON) |
-| **Database** | PostgreSQL + pgvector (shared). Lưu ý Nợ kỹ thuật (Technical Debt): Đánh đổi rủi ro Tight Coupling (khi sửa Schema phải sửa đổi cả ở 2 service) để lấy sự đơn giản. |
-| **Auth** | JWT + bcrypt |
-| **Tối ưu** | Vector DB (`pgvector`), DB indexing, pagination, batch update, in-memory cache, SSE (Streaming UI cho AI), có tính Fault Tolerance (Retry + Fallback nếu Gemini sập). |
-| **Ưu điểm** | Tách biệt Python/Node.js, dễ phát triển 1 người, không quá phức tạp, có lộ trình scale bài bản. |
-| **Nhược / Đánh đổi**| - Cần quản lý nhiều component hơn Monolith.<br>- Chấp nhận phá vỡ tính Độc lập dữ liệu (Data Independence) để tiết kiệm thời gian triển khai (Shared DB Pattern). |
+## 3. Trách nhiệm từng service
+
+### 3.1 Frontend — `web-fe`
+
+- React Router cho home, search, tour detail, chat, profile, favorites, recommendations, admin và payment result.
+- Axios API client gắn JWT từ Zustand/local storage.
+- Hiển thị gallery, itinerary, schedule, rating 5 sao, review và modal booking.
+- Google Identity Services trả credential cho backend xác minh; secret không nằm trong frontend.
+- Search dùng nút submit; bộ lọc trong nước/quốc tế, điểm đến, thời lượng và giá được áp dụng khi bấm lọc.
+- Trang admin dùng sidebar/list, filter, pagination, modal xác nhận và upload ảnh.
+- Chat hiện dùng request/response REST; chưa có SSE streaming.
+
+### 3.2 Web Service — `web-be`
+
+Express là API gateway duy nhất của frontend. Service này:
+
+- Xác thực local/Google, email OTP, JWT, bcrypt, role và `is_active`.
+- Đọc/ghi PostgreSQL bằng parameterized query qua `pg`.
+- Cung cấp tour/search/favorite/action/review/admin/booking/payment endpoints.
+- Gọi AI Service với `AI_SERVICE_URL` và `AI_SERVICE_API_KEY`.
+- Có fallback truy vấn tour phổ biến nếu AI recommendation unavailable/timeout.
+- Tạo QR VietQR hoặc payload checkout SePay Gateway mà không lộ merchant secret.
+- Nhận và xác thực webhook/IPN trước khi đổi trạng thái booking.
+
+### 3.3 AI Service — `ai-service`
+
+FastAPI đảm nhiệm:
+
+- Content-based recommendation bằng tag vector và cosine similarity.
+- ML reranker nếu model artifact được bật.
+- Cold-start từ filter hoặc tour phổ biến.
+- Chat intent/slot, context follow-up, giải thích tour và gợi ý điểm đến.
+- Cập nhật `user_preferences` từ hành vi.
+- Sinh/lưu tag tour.
+
+Provider LLM được chọn bằng `LLM_PROVIDER`:
+
+- `deepseek`: provider mặc định hiện tại cho câu trả lời tự nhiên.
+- `gemini`: provider thay thế nếu cấu hình `GEMINI_API_KEY`.
+- Local/rule-based fallback vẫn cần thiết khi provider hết quota, timeout hoặc model không khả dụng.
+
+### 3.4 Crawler — `crawler`
+
+Crawler/seed script đọc JSON crawl từ BestPrice, chuẩn hóa giá/rating/ngày, lưu các trường mở rộng và cập nhật database. BestPrice là nguồn dữ liệu học thuật, không phải thương hiệu sản phẩm trong UI.
+
+Khi seed lại:
+
+- Review nhập khẩu (`user_id IS NULL`) có thể được thay thế.
+- Review user (`user_id IS NOT NULL`) được giữ nguyên.
+- Aggregate nhập khẩu được lưu ở `imported_avg_rating` và `imported_review_count`.
+
+## 4. Các luồng dữ liệu chính
+
+### 4.1 Gợi ý tour
+
+```text
+User mở Recommendations
+        │
+        ▼
+web-fe → GET /api/recommendations
+        │ JWT
+        ▼
+web-be → POST /ai/recommend
+        │ user_id + filters + top_k
+        ▼
+ai-service đọc preferences/tags/tours
+        │
+        ├─ Không có profile → filter-aware cold-start hoặc popular
+        └─ Có profile → vector cosine → ML rerank (nếu bật)
+        │
+        ▼
+web-be trả recommendations về frontend
+        │
+        └─ AI lỗi/timeout → query popular tours từ PostgreSQL
+```
+
+Tour phổ biến và tour gợi ý không phải cùng một danh sách cố định. Popular xếp theo rating/count để phục vụ cold-start; recommendation ưu tiên sự tương đồng với sở thích và filter.
+
+### 4.2 Học từ hành vi
+
+Frontend/backend ghi `user_actions` cho `click`, `view`, `save`, `search`.
+
+- `save`: trọng số `0.70`.
+- `click`: trọng số `0.35`.
+- `search`: trọng số `0.18`; backend tìm tối đa ba tour khớp query rồi học từ tag.
+- `view`: hiện chỉ ghi log, trọng số cập nhật `0.00`.
+
+Web Service gọi `/ai/update-profile` best-effort; nếu AI tạm thời lỗi, hành vi vẫn được lưu để có thể xử lý trong lần sau.
+
+### 4.3 Chat AI
+
+```text
+web-fe → POST /api/chat
+        │ session_id + message
+        ▼
+web-be lưu user message
+        │ recent context + slots + last recommendations
+        ▼
+ai-service phân tích intent/slot và gọi provider nếu cần
+        │
+        ├─ Thiếu dữ liệu → hỏi ngắn gọn phần còn thiếu
+        ├─ Có yêu cầu tour → recommendation engine
+        └─ Hỏi tour 1/2/lịch trình → dùng last recommendations + payload tour
+        ▼
+web-be lưu assistant message và trả JSON về frontend
+```
+
+Lịch sử được lưu ở `chat_sessions`/`chat_messages`. Context ngắn hạn hiện giữ trong memory của Web Service; khi process restart, database vẫn còn lịch sử nhưng state slot/last recommendation trong memory có thể cần khôi phục từ UI/session.
+
+### 4.4 Review và admin reply
+
+- User đăng nhập gửi review 1–5 sao; backend lưu quy đổi theo thang 10.
+- Transaction cập nhật aggregate tour dựa trên thống kê review nhập khẩu và review user.
+- User chỉ sửa/xóa review của mình.
+- Admin reply đi vào `review_replies`, unique theo `review_id`.
+- Reply không được tính như review và không ảnh hưởng rating/count/ranking.
+
+### 4.5 Booking và SePay
+
+```text
+User điền form booking
+        ▼
+POST /api/bookings
+        ▼
+Backend lấy giá từ DB, tạo pending booking + payment code
+        │
+        ├─ qr      → trả qr_url VietQR
+        └─ gateway → trả form checkout đã ký
+        ▼
+Frontend hiển thị QR/submit checkout
+        ▼
+SePay redirect về /payment-result (chỉ UX)
+        ▼
+SePay IPN/webhook → backend xác thực → booking paid
+```
+
+Redirect không được dùng để đánh dấu paid. Các kiểm tra IPN gồm invoice, amount, currency, payment method, status, expiry và transaction id.
+
+### 4.6 Email/Google authentication
+
+- Local registration tạo user chưa verified, hash mã OTP bằng HMAC và gửi qua console/Resend.
+- Verify thành công cập nhật `email_verified_at`.
+- Google credential được backend verify với `GOOGLE_CLIENT_ID`, sau đó tạo hoặc liên kết `google_sub`.
+- JWT là access token hiện tại; chưa có refresh-token endpoint riêng trong flow source hiện tại.
+
+## 5. Mô hình dữ liệu và migration
+
+```text
+tours ──< reviews ──1 review_replies
+  │          │
+  │          └── users (review owner/admin reply)
+  ├──< tour_tags
+  ├──< favorites >── users
+  ├──< user_actions >── users
+  └──< bookings ──< payments
+
+users ──< user_preferences
+users ──< chat_sessions ──< chat_messages
+users ──< email_verification_codes
+```
+
+Migration chạy theo thứ tự:
+
+1. `001_initial_schema.sql` — schema nền và index.
+2. `002_add_favorites.sql` — favorites.
+3. `003_add_bestprice_fields.sql` — dữ liệu mở rộng JSONB/array.
+4. `004_admin_user_management.sql` — `is_active`.
+5. `005_add_bookings_and_sepay.sql` — booking/payment.
+6. `006_email_verification.sql` — email verification.
+7. `007_google_auth.sql` — Google auth.
+8. `008_user_tour_reviews.sql` — user review.
+9. `009_preserve_imported_review_stats.sql` — aggregate crawl.
+10. `010_admin_review_replies.sql` — admin reply.
+
+Schema nền không bắt buộc `pgvector`; recommendation hiện dùng NumPy/scikit-learn. `JSONB` được dùng cho itinerary, included/excluded, schedule và transport vì dữ liệu chủ yếu read-mostly và phù hợp phạm vi đồ án.
+
+## 6. Giao tiếp và bảo mật
+
+| Luồng | Giao thức | Bảo vệ |
+|---|---|---|
+| Frontend → Web Service | HTTP REST/JSON | CORS, JWT khi cần, rate limit |
+| Web Service → AI Service | HTTP REST/JSON | `X-API-Key`, timeout |
+| Web Service → PostgreSQL | SQL qua `pg` | Parameterized query, secret trong env |
+| AI Service → PostgreSQL | SQLAlchemy | `DATABASE_URL` trong env |
+| SePay → Web Service | HTTPS webhook/IPN | API key hoặc IPN secret, kiểm tra payload |
+| Crawler → PostgreSQL | SQL batch | Chạy ngoài request path |
+
+Các biện pháp đang có:
+
+- `helmet`, `cors`, `compression`, rate limiting ở backend.
+- Zod validation cho auth, review, tour admin, booking và IPN.
+- Bcrypt cho password; không lưu password plain text.
+- Rich text tour được sanitize trước khi render.
+- Admin route yêu cầu cả JWT và role `admin`.
+- Không đặt `RESEND_API_KEY`, `SEPAY_SECRET_KEY`, `JWT_SECRET` hoặc database password trong `VITE_*`.
+
+## 7. Hiệu năng và khả năng chịu lỗi
+
+- Cache in-memory bằng `node-cache` cho popular, detail và search với TTL cấu hình.
+- Danh sách tour/review/admin dùng pagination hoặc giới hạn kết quả.
+- AI recommendation fallback về popular tours khi AI Service chết/timeout.
+- Slot/intent và câu trả lời có đường fallback local khi LLM lỗi.
+- DeepSeek client có timeout khoảng 35 giây; request chat từ Web Service khoảng 30 giây. Đây là điểm cần cân nhắc nếu muốn giảm độ trễ.
+- Chat chưa streaming SSE; muốn có typing effect thật cần thiết kế API streaming riêng.
+- Khi scale trên khoảng 1.000 user, có thể chuyển cache sang Redis, thêm queue cho action/profile và dùng reverse proxy/API gateway.
+
+## 8. Triển khai
+
+### Local
+
+```text
+PostgreSQL → ai-service :8000 → web-be :3000 → web-fe :5174
+```
+
+### Production hiện định hướng
+
+- Frontend deploy Vercel.
+- Backend và PostgreSQL deploy Railway.
+- AI Service phải có network URL mà backend Railway gọi được; nếu AI chạy local thì chỉ dùng cho local development.
+- Railway cần chạy migration thủ công; deploy source không tự cập nhật schema.
+- `FRONTEND_URLS` phải chứa origin Vercel chính xác, không thêm `/api`.
+- SePay IPN cần URL HTTPS public.
+
+## 9. Lộ trình mở rộng
+
+| Mốc | Hướng mở rộng |
+|---|---|
+| Hiện tại | Service-Based Architecture, PostgreSQL dùng chung, cache memory, fallback local/DB |
+| 1.000–10.000 user | Redis, reverse proxy, queue cho action/profile, quan sát latency |
+| 10.000–100.000 user | API gateway, worker, autoscaling, tách workload AI |
+| Khi sản phẩm thương mại hóa | Cân nhắc SSR/Next.js, quản lý media object storage, audit log và chính sách dữ liệu |
+
+## 10. Kết luận
+
+Kiến trúc hiện tại ưu tiên ranh giới rõ giữa UI, API nghiệp vụ và AI nhưng vẫn đơn giản để một người phát triển, kiểm thử và demo. Những quyết định quan trọng cần giữ ổn định là:
+
+- Frontend không gọi LLM trực tiếp.
+- Popular chỉ là cold-start/fallback, không thay thế recommendation cá nhân hóa.
+- Customer review và admin reply là hai loại dữ liệu khác nhau.
+- Booking chỉ paid sau IPN/webhook hợp lệ.
+- Secret chỉ nằm trong environment/deployment platform.

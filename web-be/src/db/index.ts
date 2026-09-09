@@ -1,10 +1,16 @@
 import { Pool } from 'pg';
 
+const parsePositiveInteger = (value: string | undefined, fallback: number, maximum: number) => {
+  const parsed = Number.parseInt(value || '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, maximum);
+};
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
+  connectionString: process.env.DATABASE_URL?.trim(),
+  max: parsePositiveInteger(process.env.PG_POOL_MAX, 10, 20),
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: parsePositiveInteger(process.env.DATABASE_CONNECT_TIMEOUT_MS, 10000, 30000),
 });
 
 pool.on('error', (err) => {
@@ -25,5 +31,9 @@ export const query = async (text: string, params?: unknown[]) => {
 };
 
 export const getClient = () => pool.connect();
+
+export const pingDatabase = async () => {
+  await pool.query('SELECT 1');
+};
 
 export const closePool = () => pool.end();

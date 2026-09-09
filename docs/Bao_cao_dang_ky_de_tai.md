@@ -1,5 +1,7 @@
 # BÁO CÁO ĐĂNG KÝ ĐỀ TÀI TỐT NGHIỆP
 
+> Đây là bản mô tả tại thời điểm đăng ký đề tài. Trạng thái triển khai mới nhất ngày **07/09/2026** được tổng hợp tại [`Tong_hop_y_tuong_do_an_tour_du_lich_AI.md`](./Tong_hop_y_tuong_do_an_tour_du_lich_AI.md) và [`Cap_nhat_du_an.md`](./Cap_nhat_du_an.md).
+
 ## ĐỀ TÀI: HỆ THỐNG GỢI Ý TOUR DU LỊCH AI CÁ NHÂN HÓA CHO NGƯỜI VIỆT
 
 ---

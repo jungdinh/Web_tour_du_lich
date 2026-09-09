@@ -84,12 +84,23 @@ export interface Tag {
   weight: number
 }
 
+export interface AdminReviewReply {
+  id: number
+  content: string
+  admin_name: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Review {
   id: number
   content: string
   rating: number
   reviewer_name?: string
   created_at: string
+  updated_at?: string
+  source?: 'user' | 'imported'
+  admin_reply?: AdminReviewReply | null
 }
 
 export interface Recommendation {
@@ -172,6 +183,17 @@ export interface AdminUserDetail extends AdminUser {
   reviews: Array<{ id: number; tour_id: number; tour_name: string; rating: number; content: string; created_at: string }>
 }
 
+export interface BookingPayment {
+  id: number
+  provider: string
+  provider_transaction_id?: string | null
+  reference_code?: string | null
+  transfer_amount: number
+  status: 'paid' | 'refunded' | string
+  paid_at?: string | null
+  created_at?: string | null
+}
+
 export interface Booking {
   id: number
   booking_code: string
@@ -193,6 +215,13 @@ export interface Booking {
   paid_at?: string | null
   created_at: string
   updated_at: string
+  payment: BookingPayment | null
+  payment_mode: 'gateway' | 'qr' | 'unavailable'
+  checkout?: {
+    action: string
+    method: 'POST'
+    fields: Record<string, string>
+  } | null
   qr_url: string | null
   bank: {
     code: string
@@ -200,7 +229,13 @@ export interface Booking {
     account_name: string
   }
 }
-export interface AdminReview extends Review {
-  tour_id: number
-  tour_name: string
+
+export interface AdminBooking extends Omit<Booking, 'payment_mode' | 'checkout' | 'qr_url' | 'bank'> {
+  user_id: number
+  user_name: string
+  user_email: string
+}
+
+export interface AdminBookingDetail extends AdminBooking {
+  payments: BookingPayment[]
 }

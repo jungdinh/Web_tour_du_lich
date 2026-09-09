@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { query } from '../db/index.js';
 import { AuthRequest } from './auth.js';
 import { applyTravelTypeFilter, invalidateTourCache } from './tours.js';
+import { filterFutureScheduleRows, isFutureScheduleDate, normalizeScheduleDate } from '../utils/schedule.js';
+
+const MAX_TOUR_GALLERY_IMAGES = 60;
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -28,9 +31,41 @@ const itineraryDaySchema = z.object({
 });
 
 const scheduleRowSchema = z.object({
-  date: z.string().trim().max(100).default(''),
+  date: z.string().trim().min(1, 'Ngày khởi hành là bắt buộc.').max(100),
   price: z.coerce.number().int().min(0).default(0),
   available: z.boolean().default(true),
+}).transform((row, context) => {
+  const normalizedDate = normalizeScheduleDate(row.date);
+  if (!normalizedDate) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['date'],
+      message: 'Ngày khởi hành phải có định dạng hợp lệ.',
+    });
+    return z.NEVER;
+  }
+  return { ...row, date: normalizedDate };
+});
+
+const scheduleSchema = z.array(scheduleRowSchema).max(100).superRefine((rows, context) => {
+  const seenDates = new Set<string>();
+  rows.forEach((row, index) => {
+    if (!isFutureScheduleDate(row.date)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [index, 'date'],
+        message: 'Chỉ được chọn ngày khởi hành trong tương lai.',
+      });
+    }
+    if (seenDates.has(row.date)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [index, 'date'],
+        message: 'Ngày khởi hành không được trùng nhau.',
+      });
+    }
+    seenDates.add(row.date);
+  });
 });
 
 const tourSchema = z.object({
@@ -40,7 +75,7 @@ const tourSchema = z.object({
   duration: z.coerce.number().int().min(1).max(365),
   description: z.string().trim().min(1).max(20000),
   image_url: z.string().trim().url().optional().nullable().or(z.literal('')),
-  gallery: z.array(z.string().trim().url()).min(1).max(12),
+  gallery: z.array(z.string().trim().url()).min(1).max(MAX_TOUR_GALLERY_IMAGES),
   season: z.string().trim().min(1).max(50),
   duration_label: z.string().trim().max(20).optional().nullable().or(z.literal('')),
   original_price: z.coerce.number().int().min(0).optional().nullable(),
@@ -50,11 +85,11 @@ const tourSchema = z.object({
   itinerary: z.array(itineraryDaySchema).max(30).default([]),
   included: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
   excluded: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
-  schedule: z.array(scheduleRowSchema).max(100).default([]),
+  schedule: scheduleSchema.default([]),
   transport: z.object({
-    airline: z.string().trim().max(255).optional().default(''),
-    vehicle: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
-  }).default({ airline: '', vehicle: [] }),
+    airline: z.string().trim().max(255).nullish().transform((value) => value ?? ''),
+    vehicle: z.array(z.string().trim().min(1).max(100)).max(20).nullish().transform((value) => value ?? []),
+  }).nullish().transform((value) => value ?? { airline: '', vehicle: [] }),
 });
 
 const uploadMimeTypes = new Map([
@@ -62,6 +97,14 @@ const uploadMimeTypes = new Map([
   ['image/png', 'png'],
   ['image/webp', 'webp'],
 ])
+
+const validationErrorResponse = (error: z.ZodError) => ({
+  error: error.issues.map((issue) => {
+    const path = issue.path.length ? issue.path.join('.') : 'request'
+    return `${path}: ${issue.message}`
+  }).join(' '),
+  details: error.issues,
+})
 
 export const uploadAdminTourImage = async (req: Request, res: Response) => {
   try {
@@ -175,11 +218,14 @@ export const getAdminTours = async (req: Request, res: Response) => {
     );
 
     res.json({
-      data: result.rows,
+      data: result.rows.map((tour) => ({
+        ...tour,
+        schedule: filterFutureScheduleRows(tour.schedule),
+      })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     console.error('Admin tours error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -209,7 +255,7 @@ export const createAdminTour = async (req: Request, res: Response) => {
     invalidateTourCache();
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     console.error('Admin create tour error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -241,7 +287,7 @@ export const updateAdminTour = async (req: Request, res: Response) => {
     invalidateTourCache();
     res.json(result.rows[0]);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin update tour error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -285,14 +331,14 @@ export const getAdminUsers = async (req: Request, res: Response) => {
       `SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at, u.updated_at,
           (SELECT COUNT(*)::int FROM favorites f WHERE f.user_id = u.id) AS favorite_count,
           (SELECT COUNT(*)::int FROM user_actions ua WHERE ua.user_id = u.id) AS action_count,
-          (SELECT COUNT(*)::int FROM reviews r WHERE lower(r.reviewer_name) = lower(u.name)) AS review_count
+           (SELECT COUNT(*)::int FROM reviews r WHERE r.user_id = u.id) AS review_count
        FROM users u ${where}
        ORDER BY u.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
     res.json({ data: result.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     console.error('Admin users error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -311,7 +357,7 @@ export const updateAdminUserRole = async (req: AuthRequest, res: Response) => {
     if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(result.rows[0]);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin role update error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -325,7 +371,7 @@ export const getAdminUserDetail = async (req: Request, res: Response) => {
       `SELECT id, name, email, role, is_active, created_at, updated_at,
         (SELECT COUNT(*)::int FROM favorites WHERE user_id = users.id) AS favorite_count,
         (SELECT COUNT(*)::int FROM user_actions WHERE user_id = users.id) AS action_count,
-        (SELECT COUNT(*)::int FROM reviews WHERE lower(reviewer_name) = lower(users.name)) AS review_count
+         (SELECT COUNT(*)::int FROM reviews WHERE user_id = users.id) AS review_count
        FROM users WHERE id = $1`,
       [id],
     );
@@ -334,8 +380,8 @@ export const getAdminUserDetail = async (req: Request, res: Response) => {
       query(`SELECT t.id, t.name, t.destination, t.price, t.image_url, f.created_at AS favorited_at
              FROM favorites f JOIN tours t ON t.id = f.tour_id WHERE f.user_id = $1 ORDER BY f.created_at DESC LIMIT 20`, [id]),
       query(`SELECT r.id, r.tour_id, t.name AS tour_name, r.rating, r.content, r.created_at
-             FROM reviews r JOIN tours t ON t.id = r.tour_id WHERE lower(r.reviewer_name) = lower($1)
-             ORDER BY r.created_at DESC LIMIT 20`, [userResult.rows[0].name]),
+              FROM reviews r JOIN tours t ON t.id = r.tour_id WHERE r.user_id = $1
+              ORDER BY r.created_at DESC LIMIT 20`, [id]),
       query(`SELECT COUNT(*)::int AS count FROM chat_sessions WHERE user_id = $1`, [id]),
     ]);
     res.json({ ...userResult.rows[0], favorites: favorites.rows, reviews: reviews.rows, chat_session_count: chats.rows[0].count });
@@ -359,7 +405,7 @@ export const updateAdminUserStatus = async (req: AuthRequest, res: Response) => 
     if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(result.rows[0]);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin user status error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -376,47 +422,6 @@ export const deleteAdminUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin delete user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getAdminReviews = async (req: Request, res: Response) => {
-  try {
-    const { page, limit, search } = paginationSchema.parse(req.query);
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    if (search) {
-      params.push(`%${search}%`);
-      conditions.push(`(r.content ILIKE $${params.length} OR t.name ILIKE $${params.length} OR r.reviewer_name ILIKE $${params.length})`);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const count = await query(`SELECT COUNT(*)::int AS total FROM reviews r JOIN tours t ON t.id = r.tour_id ${where}`, params);
-    const total = count.rows[0].total as number;
-    const offset = (page - 1) * limit;
-    params.push(limit, offset);
-    const result = await query(
-      `SELECT r.id, r.content, r.rating, r.reviewer_name, r.created_at, r.tour_id, t.name AS tour_name
-       FROM reviews r JOIN tours t ON t.id = r.tour_id ${where}
-       ORDER BY r.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
-      params,
-    );
-    res.json({ data: result.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
-  } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
-    console.error('Admin reviews error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const deleteAdminReview = async (req: Request, res: Response) => {
-  try {
-    const id = parseId(req.params.id);
-    const result = await query('DELETE FROM reviews WHERE id = $1 RETURNING id', [id]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Review not found' });
-    res.status(204).send();
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
-    console.error('Admin delete review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

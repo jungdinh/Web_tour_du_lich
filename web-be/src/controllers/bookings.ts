@@ -3,6 +3,16 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { getClient, query } from '../db/index.js';
 import type { AuthRequest } from './auth.js';
+import {
+  assertSepayGatewayConfigured,
+  buildSepayCheckout,
+  getSepayIpnSecret,
+  isSepayGatewayEnabled,
+  SepayConfigurationError,
+  tryBuildSepayCheckout,
+} from '../services/sepay.js';
+import type { SepayCheckout } from '../services/sepay.js';
+import { isFutureScheduleDate, normalizeScheduleDate, normalizeScheduleRows } from '../utils/schedule.js';
 
 const createBookingSchema = z.object({
   tour_id: z.coerce.number().int().positive(),
@@ -12,6 +22,13 @@ const createBookingSchema = z.object({
   contact_email: z.string().trim().email().max(255),
   contact_phone: z.string().trim().min(8).max(30).regex(/^[0-9+().\s-]+$/),
   note: z.string().trim().max(1000).optional().default(''),
+});
+
+const bookingHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  status: z.enum(['all', 'pending_payment', 'paid', 'confirmed', 'cancelled', 'expired', 'refunded']).default('all'),
+  paymentStatus: z.enum(['all', 'pending', 'paid', 'failed', 'refunded']).default('all'),
 });
 
 const sepayWebhookSchema = z.object({
@@ -29,7 +46,39 @@ const sepayWebhookSchema = z.object({
   description: z.string().nullable().optional(),
 }).passthrough();
 
-const paymentExpiryMinutes = Math.max(5, Number(process.env.PAYMENT_EXPIRES_MINUTES || 30));
+const sepayGatewayIpnSchema = z.object({
+  timestamp: z.coerce.number().int().positive(),
+  notification_type: z.string().trim().min(1),
+  order: z.object({
+    order_id: z.union([z.string(), z.number()]).optional(),
+    order_invoice_number: z.string().trim().min(1).max(100),
+    order_amount: z.coerce.number().nonnegative(),
+    order_status: z.string().trim().optional(),
+    currency: z.string().trim().optional(),
+    order_currency: z.string().trim().optional(),
+    merchant: z.union([z.string(), z.number()]).optional(),
+  }).passthrough(),
+  transaction: z.object({
+    id: z.union([z.string(), z.number()]).optional(),
+    transaction_id: z.union([z.string(), z.number()]).optional(),
+    payment_method: z.string().trim().optional(),
+    transaction_status: z.string().trim().optional(),
+    transaction_amount: z.coerce.number().nonnegative(),
+    transaction_currency: z.string().trim().optional(),
+    transaction_type: z.string().trim().optional(),
+    transaction_date: z.string().trim().optional(),
+    reference_code: z.union([z.string(), z.number()]).nullable().optional(),
+  }).passthrough(),
+  customer: z.object({
+    id: z.union([z.string(), z.number()]),
+    customer_id: z.union([z.string(), z.number()]).nullable().optional(),
+  }).passthrough(),
+}).passthrough();
+
+const configuredExpiryMinutes = Number(process.env.PAYMENT_EXPIRES_MINUTES || 30);
+const paymentExpiryMinutes = Number.isFinite(configuredExpiryMinutes)
+  ? Math.max(5, configuredExpiryMinutes)
+  : 30;
 
 const createCode = (prefix: string) => {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -52,14 +101,88 @@ const buildQrUrl = (amount: number, paymentCode: string) => {
   return `${baseUrl}?${params.toString()}`;
 };
 
-const mapBooking = (row: Record<string, unknown>) => {
-  const totalAmount = Number(row.total_amount || 0);
+export const bookingProjection = (bookingAlias = 'b') => `
+  ${bookingAlias}.*,
+  payment.id AS latest_payment_id,
+  payment.provider AS latest_payment_provider,
+  payment.provider_transaction_id AS latest_payment_transaction_id,
+  payment.reference_code AS latest_payment_reference_code,
+  payment.transfer_amount AS latest_payment_transfer_amount,
+  payment.status AS latest_payment_record_status,
+  payment.paid_at AS latest_payment_paid_at,
+  payment.created_at AS latest_payment_created_at`;
+
+export const bookingPaymentJoin = (bookingAlias = 'b') => `
+  LEFT JOIN LATERAL (
+    SELECT id, provider, provider_transaction_id, reference_code,
+           transfer_amount, status, paid_at, created_at
+    FROM payments
+    WHERE payments.booking_id = ${bookingAlias}.id
+    ORDER BY paid_at DESC, id DESC
+    LIMIT 1
+  ) AS payment ON TRUE`;
+
+const getCheckoutBooking = (row: Record<string, unknown>) => ({
+  id: Number(row.id),
+  bookingCode: String(row.booking_code || ''),
+  paymentCode: String(row.payment_code || ''),
+  amount: Number(row.total_amount || 0),
+  userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+});
+
+export const mapPaymentSummary = (row: Record<string, unknown>) => {
+  if (row.latest_payment_id === null || row.latest_payment_id === undefined) return null;
+
   return {
-    ...row,
+    id: Number(row.latest_payment_id),
+    provider: String(row.latest_payment_provider || ''),
+    provider_transaction_id: row.latest_payment_transaction_id === null || row.latest_payment_transaction_id === undefined
+      ? null
+      : String(row.latest_payment_transaction_id),
+    reference_code: row.latest_payment_reference_code === null || row.latest_payment_reference_code === undefined
+      ? null
+      : String(row.latest_payment_reference_code),
+    transfer_amount: Number(row.latest_payment_transfer_amount || 0),
+    status: String(row.latest_payment_record_status || 'paid'),
+    paid_at: row.latest_payment_paid_at ? String(row.latest_payment_paid_at) : null,
+    created_at: row.latest_payment_created_at ? String(row.latest_payment_created_at) : null,
+  };
+};
+
+export const mapBookingBase = (row: Record<string, unknown>) => {
+  const booking = { ...row };
+  [
+    'latest_payment_id',
+    'latest_payment_provider',
+    'latest_payment_transaction_id',
+    'latest_payment_reference_code',
+    'latest_payment_transfer_amount',
+    'latest_payment_record_status',
+    'latest_payment_paid_at',
+    'latest_payment_created_at',
+  ].forEach((key) => delete booking[key]);
+
+  return {
+    ...booking,
     unit_price: Number(row.unit_price || 0),
-    total_amount: totalAmount,
+    total_amount: Number(row.total_amount || 0),
     guest_count: Number(row.guest_count || 0),
-    qr_url: buildQrUrl(totalAmount, String(row.payment_code || '')),
+    payment: mapPaymentSummary(row),
+  };
+};
+
+const mapBooking = (row: Record<string, unknown>, checkout?: SepayCheckout | null) => {
+  const totalAmount = Number(row.total_amount || 0);
+  const isPending = row.payment_status === 'pending' && row.status === 'pending_payment';
+  const resolvedCheckout = checkout === undefined && isPending
+    ? tryBuildSepayCheckout(getCheckoutBooking(row))
+    : checkout;
+  const qrUrl = buildQrUrl(totalAmount, String(row.payment_code || ''));
+  return {
+    ...mapBookingBase(row),
+    payment_mode: resolvedCheckout ? 'gateway' : qrUrl ? 'qr' : 'unavailable',
+    checkout: isPending ? resolvedCheckout || null : null,
+    qr_url: qrUrl,
     bank: {
       code: process.env.SEPAY_BANK_CODE || '',
       account_number: process.env.SEPAY_ACCOUNT_NUMBER || '',
@@ -82,14 +205,25 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
   const client = await getClient();
   try {
     const input = createBookingSchema.parse(req.body);
-    const departure = new Date(`${input.departure_date}T00:00:00+07:00`);
-    if (Number.isNaN(departure.getTime()) || departure.getTime() < Date.now() - 86400000) {
-      return res.status(400).json({ error: 'Ngày khởi hành không hợp lệ hoặc đã qua.' });
+    const departureDate = normalizeScheduleDate(input.departure_date);
+    if (!departureDate || !isFutureScheduleDate(departureDate)) {
+      return res.status(400).json({ error: 'Ngày khởi hành phải là một ngày trong tương lai.' });
+    }
+
+    if (isSepayGatewayEnabled()) {
+      try {
+        assertSepayGatewayConfigured();
+      } catch (error) {
+        if (error instanceof SepayConfigurationError) {
+          return res.status(503).json({ error: error.message });
+        }
+        throw error;
+      }
     }
 
     await client.query('BEGIN');
     const tourResult = await client.query(
-      `SELECT id, name, destination, price
+      `SELECT id, name, destination, price, schedule
        FROM tours WHERE id = $1 FOR SHARE`,
       [input.tour_id],
     );
@@ -99,13 +233,29 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
     }
 
     const tour = tourResult.rows[0];
+    const scheduleRows = normalizeScheduleRows(tour.schedule);
+    const selectedSchedule = scheduleRows.find((row) => row.date === departureDate);
+    if (!selectedSchedule) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Ngày khởi hành không nằm trong lịch của tour.' });
+    }
+    if (!selectedSchedule.available) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Ngày khởi hành này hiện đã hết chỗ.' });
+    }
+
     const unitPrice = Number(tour.price);
-    if (!Number.isSafeInteger(unitPrice) || unitPrice <= 0) {
+    const schedulePrice = selectedSchedule.price > 0 ? selectedSchedule.price : unitPrice;
+    if (!Number.isSafeInteger(schedulePrice) || schedulePrice <= 0) {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Tour chưa có mức giá hợp lệ để đặt trực tuyến.' });
     }
 
-    const totalAmount = unitPrice * input.guest_count;
+    const totalAmount = schedulePrice * input.guest_count;
+    if (!Number.isSafeInteger(totalAmount) || totalAmount <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Tổng tiền tour không hợp lệ để thanh toán trực tuyến.' });
+    }
     const bookingCode = createCode('BK');
     const paymentCode = createCode('TA');
     const result = await client.query(
@@ -123,9 +273,9 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
         tour.id,
         tour.name,
         tour.destination,
-        input.departure_date,
+        departureDate,
         input.guest_count,
-        unitPrice,
+        schedulePrice,
         totalAmount,
         input.contact_name,
         input.contact_email,
@@ -135,17 +285,22 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       ],
     );
 
+    const checkout = buildSepayCheckout(getCheckoutBooking(result.rows[0]));
+
     await client.query(
       `INSERT INTO user_actions (user_id, tour_id, action_type)
        VALUES ($1, $2, 'booking')`,
       [req.user!.id, tour.id],
     );
     await client.query('COMMIT');
-    return res.status(201).json(mapBooking(result.rows[0]));
+    return res.status(201).json(mapBooking(result.rows[0], checkout));
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.flatten() });
+    }
+    if (error instanceof SepayConfigurationError) {
+      return res.status(503).json({ error: error.message });
     }
     console.error('Create booking error:', error);
     return res.status(500).json({ error: 'Không thể tạo đơn đặt tour.' });
@@ -163,13 +318,64 @@ export const getBookings = async (req: AuthRequest, res: Response) => {
       [req.user!.id],
     );
     const result = await query(
-      `SELECT * FROM bookings WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT ${bookingProjection('b')}
+       FROM bookings b
+       ${bookingPaymentJoin('b')}
+       WHERE b.user_id = $1
+       ORDER BY b.created_at DESC, b.id DESC`,
       [req.user!.id],
     );
-    return res.json(result.rows.map(mapBooking));
+    return res.json(result.rows.map((row) => mapBooking(row)));
   } catch (error) {
     console.error('Get bookings error:', error);
     return res.status(500).json({ error: 'Không thể tải danh sách đặt tour.' });
+  }
+};
+
+export const getBookingHistory = async (req: AuthRequest, res: Response) => {
+  try {
+    const { page, limit, status, paymentStatus } = bookingHistoryQuerySchema.parse(req.query);
+    await query(
+      `UPDATE bookings SET status = 'expired', updated_at = NOW()
+       WHERE user_id = $1 AND payment_status = 'pending'
+         AND status = 'pending_payment' AND expires_at <= NOW()`,
+      [req.user!.id],
+    );
+
+    const conditions = ['b.user_id = $1'];
+    const params: unknown[] = [req.user!.id];
+    if (status !== 'all') {
+      params.push(status);
+      conditions.push(`b.status = $${params.length}`);
+    }
+    if (paymentStatus !== 'all') {
+      params.push(paymentStatus);
+      conditions.push(`b.payment_status = $${params.length}`);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const count = await query(`SELECT COUNT(*)::int AS total FROM bookings b ${where}`, params);
+    const total = Number(count.rows[0]?.total || 0);
+    const offset = (page - 1) * limit;
+    const dataParams = [...params, limit, offset];
+    const result = await query(
+      `SELECT ${bookingProjection('b')}
+       FROM bookings b
+       ${bookingPaymentJoin('b')}
+       ${where}
+       ORDER BY b.created_at DESC, b.id DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams,
+    );
+
+    return res.json({
+      data: result.rows.map((row) => mapBooking(row)),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
+    console.error('Get booking history error:', error);
+    return res.status(500).json({ error: 'Không thể tải lịch sử đặt tour.' });
   }
 };
 
@@ -181,7 +387,10 @@ export const getBooking = async (req: AuthRequest, res: Response) => {
     }
     await expirePendingBooking(bookingId, req.user!.id);
     const result = await query(
-      `SELECT * FROM bookings WHERE id = $1 AND user_id = $2`,
+      `SELECT ${bookingProjection('b')}
+       FROM bookings b
+       ${bookingPaymentJoin('b')}
+       WHERE b.id = $1 AND b.user_id = $2`,
       [bookingId, req.user!.id],
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Không tìm thấy booking.' });
@@ -316,6 +525,187 @@ export const handleSepayWebhook = async (req: Request, res: Response) => {
     }
     console.error('SePay webhook error:', error);
     return res.status(500).json({ success: false, message: 'Webhook processing failed.' });
+  } finally {
+    client.release();
+  }
+};
+
+const getSepayIpnHeader = (req: Request) => (
+  req.headers['x-secret-key']?.toString().trim() || getWebhookApiKey(req)
+);
+
+const getIpnText = (value: string | undefined) => value?.trim().toUpperCase() || '';
+
+export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
+  if (!isSepayGatewayEnabled()) {
+    return res.status(503).json({ success: false, message: 'SePay Payment Gateway is disabled.' });
+  }
+
+  const expectedKey = getSepayIpnSecret();
+  if (!expectedKey) {
+    return res.status(503).json({ success: false, message: 'SePay Payment Gateway IPN is not configured.' });
+  }
+  if (!safeKeyEquals(getSepayIpnHeader(req), expectedKey)) {
+    return res.status(401).json({ success: false, message: 'Unauthorized SePay IPN.' });
+  }
+
+  let payload: z.infer<typeof sepayGatewayIpnSchema>;
+  try {
+    payload = sepayGatewayIpnSchema.parse(req.body);
+  } catch {
+    return res.status(400).json({ success: false, message: 'Invalid SePay IPN payload.' });
+  }
+
+  if (getIpnText(payload.notification_type) !== 'ORDER_PAID') {
+    return res.json({ success: true, message: 'Notification ignored.' });
+  }
+
+  const orderStatus = getIpnText(payload.order.order_status);
+  if (orderStatus && !['CAPTURED', 'PAID', 'SUCCESS'].includes(orderStatus)) {
+    return res.json({ success: true, message: 'Order is not captured.' });
+  }
+
+  const transactionStatus = getIpnText(payload.transaction.transaction_status);
+  if (transactionStatus && !['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus)) {
+    return res.json({ success: true, message: 'Transaction is not approved.' });
+  }
+
+  const paymentMethod = getIpnText(payload.transaction.payment_method);
+  if (paymentMethod && !['BANK_TRANSFER', 'NAPAS_BANK_TRANSFER'].includes(paymentMethod)) {
+    return res.json({ success: true, message: 'Payment method is not supported.' });
+  }
+
+  const orderCurrency = getIpnText(payload.order.currency || payload.order.order_currency);
+  const transactionCurrency = getIpnText(payload.transaction.transaction_currency);
+  if (orderCurrency !== 'VND' || (transactionCurrency && transactionCurrency !== 'VND')) {
+    return res.json({ success: false, message: 'Currency is not supported.' });
+  }
+
+  const orderAmount = Number(payload.order.order_amount);
+  const transactionAmount = Number(payload.transaction.transaction_amount);
+  if (
+    !Number.isSafeInteger(orderAmount)
+    || !Number.isSafeInteger(transactionAmount)
+    || orderAmount <= 0
+    || orderAmount !== transactionAmount
+  ) {
+    return res.json({ success: false, message: 'Payment amount is invalid.' });
+  }
+
+  const transactionIdValue = payload.transaction.id ?? payload.transaction.transaction_id;
+  const transactionId = transactionIdValue === undefined || transactionIdValue === null
+    ? ''
+    : String(transactionIdValue).trim();
+  if (!transactionId) {
+    return res.status(400).json({ success: false, message: 'Transaction ID is missing.' });
+  }
+
+  const configuredMerchant = process.env.SEPAY_MERCHANT_ID?.trim();
+  const payloadRecord = payload as unknown as Record<string, unknown>;
+  const payloadMerchant = payload.order.merchant ?? payloadRecord.merchant;
+  if (configuredMerchant && payloadMerchant !== undefined && String(payloadMerchant) !== configuredMerchant) {
+    return res.status(401).json({ success: false, message: 'Merchant does not match.' });
+  }
+
+  const providerTransactionId = `sepay-pg:${transactionId}`;
+  if (providerTransactionId.length > 100) {
+    return res.status(400).json({ success: false, message: 'Transaction ID is too long.' });
+  }
+
+  const client = await getClient();
+  let transactionStarted = false;
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const duplicate = await client.query(
+      'SELECT id FROM payments WHERE provider_transaction_id = $1',
+      [providerTransactionId],
+    );
+    if (duplicate.rows.length) {
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return res.json({ success: true, message: 'Transaction already processed.' });
+    }
+
+    const bookingResult = await client.query(
+      'SELECT * FROM bookings WHERE booking_code = $1 FOR UPDATE',
+      [payload.order.order_invoice_number],
+    );
+    if (!bookingResult.rows.length) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return res.json({ success: false, message: 'Booking not found.' });
+    }
+
+    const booking = bookingResult.rows[0];
+    if (booking.payment_status === 'paid') {
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return res.json({ success: true, message: 'Booking already paid.' });
+    }
+
+    if (booking.payment_status !== 'pending' || booking.status !== 'pending_payment') {
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return res.json({ success: false, message: 'Booking is not awaiting payment.' });
+    }
+
+    const expiresAt = new Date(booking.expires_at).getTime();
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      await client.query(
+        `UPDATE bookings SET status = 'expired', updated_at = NOW()
+         WHERE id = $1 AND payment_status = 'pending'`,
+        [booking.id],
+      );
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return res.json({ success: false, message: 'Booking has expired.' });
+    }
+
+    const bookingAmount = Number(booking.total_amount);
+    if (!Number.isSafeInteger(bookingAmount) || bookingAmount !== orderAmount) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return res.json({ success: false, message: 'Payment amount does not match booking.' });
+    }
+
+    const referenceCodeValue = payload.transaction.reference_code;
+    const referenceCode = referenceCodeValue === undefined || referenceCodeValue === null
+      ? null
+      : String(referenceCodeValue);
+    const transactionDate = payload.transaction.transaction_date;
+    const paidAt = transactionDate && !Number.isNaN(Date.parse(transactionDate))
+      ? new Date(transactionDate).toISOString()
+      : null;
+
+    await client.query(
+      `INSERT INTO payments (
+         booking_id, provider, provider_transaction_id, reference_code,
+         transfer_amount, raw_payload, paid_at
+       ) VALUES ($1, 'sepay', $2, $3, $4, $5::jsonb, COALESCE($6::timestamp, NOW()))`,
+      [
+        booking.id,
+        providerTransactionId,
+        referenceCode,
+        transactionAmount,
+        JSON.stringify(payload),
+        paidAt,
+      ],
+    );
+    await client.query(
+      `UPDATE bookings
+       SET payment_status = 'paid', status = 'paid', paid_at = NOW(), updated_at = NOW()
+       WHERE id = $1`,
+      [booking.id],
+    );
+    await client.query('COMMIT');
+    transactionStarted = false;
+    return res.json({ success: true, message: 'Payment confirmed.' });
+  } catch (error) {
+    if (transactionStarted) await client.query('ROLLBACK').catch(() => undefined);
+    console.error('SePay Payment Gateway IPN error:', error);
+    return res.status(500).json({ success: false, message: 'IPN processing failed.' });
   } finally {
     client.release();
   }
