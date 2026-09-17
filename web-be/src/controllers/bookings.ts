@@ -556,18 +556,21 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: 'Invalid SePay IPN payload.' });
   }
 
-  if (getIpnText(payload.notification_type) !== 'ORDER_PAID') {
-    return res.json({ success: true, message: 'Notification ignored.' });
-  }
-
+  let isFailed = false;
+  const notificationType = getIpnText(payload.notification_type);
   const orderStatus = getIpnText(payload.order.order_status);
-  if (orderStatus && !['CAPTURED', 'PAID', 'SUCCESS'].includes(orderStatus)) {
-    return res.json({ success: true, message: 'Order is not captured.' });
-  }
-
   const transactionStatus = getIpnText(payload.transaction.transaction_status);
-  if (transactionStatus && !['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus)) {
-    return res.json({ success: true, message: 'Transaction is not approved.' });
+
+  const isSuccess = notificationType === 'ORDER_PAID' || 
+    (orderStatus && ['CAPTURED', 'PAID', 'SUCCESS'].includes(orderStatus)) ||
+    (transactionStatus && ['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus));
+
+  isFailed = notificationType === 'ORDER_FAILED' || notificationType === 'ORDER_CANCELLED' ||
+    (orderStatus && ['FAILED', 'CANCELLED'].includes(orderStatus)) ||
+    (transactionStatus && ['FAILED', 'CANCELLED'].includes(transactionStatus));
+
+  if (!isSuccess && !isFailed) {
+    return res.json({ success: true, message: 'Notification ignored.' });
   }
 
   const paymentMethod = getIpnText(payload.transaction.payment_method);
@@ -651,6 +654,16 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
       return res.json({ success: false, message: 'Booking is not awaiting payment.' });
     }
 
+    if (isFailed) {
+      await client.query(
+        `UPDATE bookings SET status = 'cancelled', payment_status = 'failed', updated_at = NOW() WHERE id = $1`,
+        [booking.id]
+      );
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return res.json({ success: true, message: 'Booking cancelled due to failed payment.' });
+    }
+
     const expiresAt = new Date(booking.expires_at).getTime();
     if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
       await client.query(
@@ -709,4 +722,45 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
   } finally {
     client.release();
   }
+};
+
+export const handleSepayReturn = async (req: Request, res: Response) => {
+  const { booking_id, status, booking_code } = req.query;
+  const bookingId = Number(booking_id);
+  const resultStatus = String(status || '').toLowerCase();
+  
+  if (Number.isInteger(bookingId) && bookingId > 0 && ['error', 'cancel', 'cancelled', 'failed'].includes(resultStatus)) {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      const bookingResult = await client.query(
+        `SELECT id, payment_status, status FROM bookings WHERE id = $1 FOR UPDATE`,
+        [bookingId]
+      );
+      if (bookingResult.rows.length) {
+        const booking = bookingResult.rows[0];
+        if (booking.payment_status === 'pending' && booking.status === 'pending_payment') {
+          await client.query(
+            `UPDATE bookings SET status = 'cancelled', payment_status = 'failed', updated_at = NOW() WHERE id = $1`,
+            [bookingId]
+          );
+        }
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      console.error('handleSepayReturn DB error:', error);
+    } finally {
+      client.release();
+    }
+  }
+
+  const frontendUrls = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5174';
+  const firstUrl = frontendUrls.split(',').map((value) => value.trim()).find(Boolean) || 'http://localhost:5174';
+  const redirectUrl = new URL(`${firstUrl}/payment-result`);
+  if (booking_id) redirectUrl.searchParams.set('booking_id', String(booking_id));
+  if (booking_code) redirectUrl.searchParams.set('booking_code', String(booking_code));
+  if (status) redirectUrl.searchParams.set('status', resultStatus === 'cancel' ? 'cancelled' : resultStatus);
+  
+  return res.redirect(redirectUrl.toString());
 };

@@ -1078,15 +1078,17 @@
 
 .paymentPanel { text-align: center; }
 .paymentPending,
-.paymentSuccess {
-  display: inline-flex;
-  padding: 7px 12px;
+.paymentSuccess,
+.paymentError {
+  display: inline-block;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: .78rem;
   font-weight: 800;
 }
 .paymentPending { background: #fff7ed; color: #c2410c; }
 .paymentSuccess { background: #ecfdf5; color: #047857; }
+.paymentError { background: #fef2f2; color: #b91c1c; }
 .paymentTourName { margin: 14px auto; max-width: 520px; color: var(--color-text); font-weight: 700; line-height: 1.45; }
 .paymentGatewayBox { display: grid; gap: 8px; max-width: 480px; margin: 0 auto 16px; padding: 20px; border: 1px solid var(--color-accent-border); border-radius: 14px; background: var(--color-bg); color: var(--color-text-secondary); }
 .paymentGatewayBox strong { color: var(--color-text); }
@@ -1112,4 +1114,88 @@
   .bookingFormFooter .bookNowBtn { width: 100%; min-width: 0; }
   .paymentDetails div { align-items: flex-start; flex-direction: column; gap: 4px; }
   .paymentDetails strong { text-align: left; }
+  .sepayCheckoutBox { flex-direction: column; }
+  .sepayQrCol { border-right: none; border-bottom: 1px dashed var(--color-border); }
+}
+
+.sepayCheckoutBox {
+  display: flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin: 20px auto;
+  max-width: 600px;
+  text-align: left;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+}
+
+.sepayQrCol {
+  flex: 0 0 240px;
+  padding: 24px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px dashed var(--color-border);
+}
+
+.sepayQrCol span {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-top: 12px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.sepayInfoCol {
+  flex: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sepayField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.sepayFieldLabel {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sepayFieldValue {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.copyBtn {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.copyBtn:hover {
+  background: #eff6ff;
 }

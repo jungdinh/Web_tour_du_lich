@@ -92,7 +92,8 @@ const buildReturnUrl = (
   booking: CheckoutBooking,
 ) => {
   const configuredUrl = process.env[`SEPAY_${status.toUpperCase()}_URL`]?.trim();
-  const targetUrl = configuredUrl || `${getFrontendBaseUrl()}/payment-result`;
+  const backendBaseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const targetUrl = configuredUrl || `${backendBaseUrl}/api/payments/sepay/return`;
 
   try {
     const url = new URL(targetUrl);
