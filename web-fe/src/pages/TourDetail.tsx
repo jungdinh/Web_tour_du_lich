@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { bookingApi, tourApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ImageWithFallback } from '@/components/ImageWithFallback'
@@ -43,6 +43,7 @@ const inferDeparture = (tour: Tour) => {
 
 export function TourDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { token, user } = useAuthStore()
   const [tour, setTour] = useState<Tour | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
@@ -51,6 +52,7 @@ export function TourDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [savingFavorite, setSavingFavorite] = useState(false)
   const [activeImage, setActiveImage] = useState('')
+  const [toastMessage, setToastMessage] = useState('')
   const [activeTab, setActiveTab] = useState<'itinerary' | 'highlights' | 'included' | 'schedule' | 'reviews'>('itinerary')
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingLoading, setBookingLoading] = useState(false)
@@ -141,13 +143,20 @@ export function TourDetailPage() {
       try {
         const refreshed = await bookingApi.getById(createdBooking.id)
         setCreatedBooking(refreshed)
-        if (refreshed.payment_status !== 'pending' || refreshed.status !== 'pending_payment') window.clearInterval(timer)
+        if (refreshed.payment_status !== 'pending' || refreshed.status !== 'pending_payment') {
+          window.clearInterval(timer)
+          if (refreshed.payment_status === 'paid') {
+            setTimeout(() => {
+              navigate(`/payment-result?booking_id=${refreshed.id}`)
+            }, 500)
+          }
+        }
       } catch {
         // Keep the payment screen usable while the webhook is pending.
       }
     }, 5000)
     return () => window.clearInterval(timer)
-  }, [bookingOpen, createdBooking?.id, createdBooking?.payment_status])
+  }, [bookingOpen, createdBooking?.id, createdBooking?.payment_status, navigate])
 
   const openBooking = (departureDate = '') => {
     if (!token) {
@@ -232,7 +241,8 @@ export function TourDetailPage() {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert('Đã sao chép: ' + text);
+      setToastMessage('Đã sao chép: ' + text);
+      setTimeout(() => setToastMessage(''), 3000);
     } catch (err) {
       console.error('Failed to copy: ', err);
     }
@@ -703,6 +713,12 @@ export function TourDetailPage() {
           </div>
         </aside>
       </div>
+
+      {toastMessage && (
+        <div className={styles.toast}>
+          ✓ {toastMessage}
+        </div>
+      )}
 
       {bookingOpen && (
         <div className={styles.bookingModalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking() }}>

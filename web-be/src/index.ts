@@ -25,12 +25,29 @@ const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL ||
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
-const trustProxy = process.env.TRUST_PROXY?.trim();
+const isRailwayEnvironment = Boolean(
+  process.env.RAILWAY_ENVIRONMENT_ID ||
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_PUBLIC_DOMAIN
+);
 
-if (trustProxy) {
-  const numericTrustProxy = Number(trustProxy);
-  app.set('trust proxy', Number.isNaN(numericTrustProxy) ? trustProxy : numericTrustProxy);
-}
+const getTrustProxySetting = () => {
+  const configuredTrustProxy = process.env.TRUST_PROXY?.trim();
+
+  if (!configuredTrustProxy) return isRailwayEnvironment ? 1 : undefined;
+
+  const normalizedTrustProxy = configuredTrustProxy.toLowerCase();
+  if (['false', '0', 'no', 'off'].includes(normalizedTrustProxy)) return false;
+  if (['true', '1', 'yes', 'on'].includes(normalizedTrustProxy)) return 1;
+
+  const numericTrustProxy = Number(configuredTrustProxy);
+  if (Number.isInteger(numericTrustProxy) && numericTrustProxy > 0) return numericTrustProxy;
+
+  return configuredTrustProxy;
+};
+
+const trustProxySetting = getTrustProxySetting();
+if (trustProxySetting !== undefined) app.set('trust proxy', trustProxySetting);
 
 app.use(helmet());
 app.use(cors({
