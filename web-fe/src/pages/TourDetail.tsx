@@ -229,6 +229,15 @@ export function TourDetailPage() {
     }).format(price)
   }
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Đã sao chép: ' + text);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  }
+
   if (loading) {
     return (
       <div className="container">
@@ -721,16 +730,55 @@ export function TourDetailPage() {
                     </button>
                   </div>
                 ) : createdBooking.qr_url ? (
-                  <img className={styles.paymentQr} src={createdBooking.qr_url} alt="Mã QR thanh toán SePay" />
+                  <div className={styles.sepayCheckoutBox}>
+                    <div className={styles.sepayQrCol}>
+                      <img className={styles.paymentQr} src={createdBooking.qr_url} alt="Mã QR thanh toán SePay" />
+                      <span>Sử dụng App ngân hàng để quét mã</span>
+                    </div>
+                    <div className={styles.sepayInfoCol}>
+                      {createdBooking.bank.account_number && (
+                        <>
+                          <div className={styles.sepayField}>
+                            <span className={styles.sepayFieldLabel}>Ngân hàng</span>
+                            <div className={styles.sepayFieldValue}>
+                              <span>{createdBooking.bank.code}</span>
+                            </div>
+                          </div>
+                          <div className={styles.sepayField}>
+                            <span className={styles.sepayFieldLabel}>Chủ tài khoản</span>
+                            <div className={styles.sepayFieldValue}>
+                              <span>{createdBooking.bank.account_name}</span>
+                            </div>
+                          </div>
+                          <div className={styles.sepayField}>
+                            <span className={styles.sepayFieldLabel}>Số tài khoản</span>
+                            <div className={styles.sepayFieldValue}>
+                              <span>{createdBooking.bank.account_number}</span>
+                              <button type="button" className={styles.copyBtn} onClick={() => void copyToClipboard(createdBooking.bank.account_number)}>Sao chép</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <div className={styles.sepayField}>
+                        <span className={styles.sepayFieldLabel}>Số tiền</span>
+                        <div className={styles.sepayFieldValue}>
+                          <span style={{ color: '#047857' }}>{formatPrice(createdBooking.total_amount)}</span>
+                          <button type="button" className={styles.copyBtn} onClick={() => void copyToClipboard(createdBooking.total_amount.toString())}>Sao chép</button>
+                        </div>
+                      </div>
+                      <div className={styles.sepayField}>
+                        <span className={styles.sepayFieldLabel}>Nội dung chuyển khoản</span>
+                        <div className={styles.sepayFieldValue}>
+                          <span style={{ color: '#c2410c' }}>{createdBooking.payment_code}</span>
+                          <button type="button" className={styles.copyBtn} onClick={() => void copyToClipboard(createdBooking.payment_code)}>Sao chép</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className={styles.paymentQrMissing}>Admin chưa cấu hình tài khoản ngân hàng SePay.</div>
                 )}
-                <div className={styles.paymentDetails}>
-                  <div><span>Số tiền</span><strong>{formatPrice(createdBooking.total_amount)}</strong></div>
-                  <div><span>Nội dung chuyển khoản</span><strong>{createdBooking.payment_code}</strong></div>
-                  {createdBooking.bank.account_number && <div><span>Tài khoản nhận</span><strong>{createdBooking.bank.account_number} · {createdBooking.bank.account_name}</strong></div>}
-                </div>
-                <p className={styles.paymentHint}>{createdBooking.checkout ? 'SePay sẽ hiển thị mã QR và xử lý giao dịch. Trạng thái đơn chỉ được cập nhật sau khi backend nhận IPN hợp lệ.' : 'Mở ứng dụng ngân hàng, quét mã QR và giữ nguyên nội dung chuyển khoản. Hệ thống sẽ tự cập nhật khi SePay nhận được tiền.'}</p>
+                <p className={styles.paymentHint}>{createdBooking.checkout ? 'SePay sẽ hiển thị mã QR và xử lý giao dịch. Trạng thái đơn chỉ được cập nhật sau khi backend nhận IPN hợp lệ.' : 'Hệ thống sẽ tự động xác nhận ngay khi nhận được thanh toán. Không cần tải lại trang.'}</p>
                 <div className={styles.paymentActions}><button type="button" className={styles.secondaryBookingButton} onClick={closeBooking}>Đóng</button></div>
               </div>
             ) : (
