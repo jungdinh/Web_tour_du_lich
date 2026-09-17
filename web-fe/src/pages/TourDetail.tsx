@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { bookingApi, tourApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -704,7 +704,13 @@ export function TourDetailPage() {
             </div>
             {createdBooking ? (
               <div className={styles.paymentPanel}>
-                <div className={createdBooking.payment_status === 'paid' ? styles.paymentSuccess : styles.paymentPending}>{createdBooking.payment_status === 'paid' ? 'Thanh toán đã được xác nhận.' : 'Đơn đang chờ thanh toán'}</div>
+                <div className={createdBooking.payment_status === 'paid' ? styles.paymentSuccess : (['expired', 'cancelled'].includes(createdBooking.status) || createdBooking.payment_status === 'failed') ? styles.paymentError : styles.paymentPending}>
+                  {createdBooking.payment_status === 'paid' ? 'Thanh toán đã được xác nhận.' :
+                   createdBooking.status === 'expired' ? 'Đơn hàng đã hết hạn thanh toán.' :
+                   createdBooking.status === 'cancelled' ? 'Đơn hàng đã bị huỷ.' :
+                   createdBooking.payment_status === 'failed' ? 'Thanh toán thất bại.' :
+                   'Đơn đang chờ thanh toán'}
+                </div>
                 <p className={styles.paymentTourName}>{createdBooking.tour_name}</p>
                 {createdBooking.checkout ? (
                   <div className={styles.paymentGatewayBox}>

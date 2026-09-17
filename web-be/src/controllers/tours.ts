@@ -144,6 +144,50 @@ const reviewSelect = `
   LEFT JOIN review_replies rr ON rr.review_id = r.id
   LEFT JOIN users reply_user ON reply_user.id = rr.admin_id`;
 
+const reviewSelectWithoutReplies = `
+  SELECT r.id, r.content, r.rating,
+         COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
+         r.user_id, r.created_at, r.updated_at,
+         NULL::int AS admin_reply_id,
+         NULL::text AS admin_reply_content,
+         NULL::timestamp AS admin_reply_created_at,
+         NULL::timestamp AS admin_reply_updated_at,
+         NULL::text AS admin_reply_by_name
+  FROM reviews r
+  LEFT JOIN users u ON u.id = r.user_id`;
+
+const legacyReviewSelect = `
+  SELECT r.id, r.content, r.rating,
+         COALESCE(NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
+         NULL::int AS user_id, r.created_at, r.created_at AS updated_at,
+         NULL::int AS admin_reply_id,
+         NULL::text AS admin_reply_content,
+         NULL::timestamp AS admin_reply_created_at,
+         NULL::timestamp AS admin_reply_updated_at,
+         NULL::text AS admin_reply_by_name
+  FROM reviews r`;
+
+const isMissingReviewSchemaError = (error: unknown) => {
+  const code = (error as { code?: string }).code;
+  return code === '42P01' || code === '42703';
+};
+
+const queryTourReviews = async (suffix: string, params: unknown[]) => {
+  try {
+    return await query(`${reviewSelect} ${suffix}`, params);
+  } catch (error) {
+    if (!isMissingReviewSchemaError(error)) throw error;
+  }
+
+  try {
+    return await query(`${reviewSelectWithoutReplies} ${suffix}`, params);
+  } catch (error) {
+    if (!isMissingReviewSchemaError(error)) throw error;
+  }
+
+  return query(`${legacyReviewSelect} ${suffix}`, params);
+};
+
 const refreshTourReviewStats = async (client: Awaited<ReturnType<typeof getClient>>, tourId: number) => {
   await client.query(
     `WITH user_stats AS (
@@ -356,9 +400,8 @@ export const getTourReviews = async (req: Request, res: Response) => {
     );
     const total = Number(countResult.rows[0].count);
     
-    const result = await query(
-      `${reviewSelect}
-       WHERE r.tour_id = $1
+    const result = await queryTourReviews(
+      `WHERE r.tour_id = $1
        ORDER BY r.created_at DESC
        LIMIT $2 OFFSET $3`,
       [tourId, pageSize, offset]
@@ -386,9 +429,8 @@ export const getTourReviews = async (req: Request, res: Response) => {
 export const getMyTourReview = async (req: AuthRequest, res: Response) => {
   try {
     const tourId = parsePositiveId(req.params.id);
-    const result = await query(
-      `${reviewSelect}
-       WHERE r.tour_id = $1 AND r.user_id = $2`,
+    const result = await queryTourReviews(
+      `WHERE r.tour_id = $1 AND r.user_id = $2`,
       [tourId, req.user!.id],
     );
     return res.json({ review: result.rows[0] ? mapReview(result.rows[0]) : null });
@@ -541,9 +583,8 @@ export const upsertAdminReviewReply = async (req: AuthRequest, res: Response) =>
     );
     if (!replyResult.rows.length) return res.status(404).json({ error: 'Không tìm thấy review của tour.' });
 
-    const result = await query(
-      `${reviewSelect}
-       WHERE r.id = $1 AND r.tour_id = $2`,
+    const result = await queryTourReviews(
+      `WHERE r.id = $1 AND r.tour_id = $2`,
       [reviewId, tourId],
     );
     return res.json(mapReview(result.rows[0]));
