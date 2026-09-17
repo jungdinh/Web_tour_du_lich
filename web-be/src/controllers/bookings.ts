@@ -561,9 +561,9 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
   const orderStatus = getIpnText(payload.order.order_status);
   const transactionStatus = getIpnText(payload.transaction.transaction_status);
 
-  const isSuccess = notificationType === 'ORDER_PAID' || 
+  const isSuccess = Boolean(notificationType === 'ORDER_PAID' || 
     (orderStatus && ['CAPTURED', 'PAID', 'SUCCESS'].includes(orderStatus)) ||
-    (transactionStatus && ['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus));
+    (transactionStatus && ['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus)));
 
   isFailed = Boolean(
     notificationType === 'ORDER_FAILED' || notificationType === 'ORDER_CANCELLED' ||
