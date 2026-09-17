@@ -289,7 +289,10 @@ export function TourDetailPage() {
     ? Math.round(((tour.original_price! - tour.price) / tour.original_price!) * 100)
     : 0
   const savings = hasDiscount ? tour.original_price! - tour.price : 0
-  const itinerary = tour.itinerary ?? []
+  const rawItinerary = tour.itinerary ?? []
+  const itinerary = rawItinerary.filter((seg, index, self) =>
+    index === self.findIndex((t) => t.day === seg.day)
+  )
   const schedule = getFutureScheduleRows(tour.schedule)
   const included = tour.included ?? []
   const excluded = tour.excluded ?? []
