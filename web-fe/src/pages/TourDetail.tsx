@@ -148,7 +148,7 @@ export function TourDetailPage() {
           if (refreshed.payment_status === 'paid') {
             setTimeout(() => {
               navigate(`/payment-result?booking_id=${refreshed.id}`)
-            }, 500)
+            }, 5000)
           }
         }
       } catch {
