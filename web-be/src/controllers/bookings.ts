@@ -565,9 +565,11 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
     (orderStatus && ['CAPTURED', 'PAID', 'SUCCESS'].includes(orderStatus)) ||
     (transactionStatus && ['APPROVED', 'PAID', 'SUCCESS'].includes(transactionStatus));
 
-  isFailed = notificationType === 'ORDER_FAILED' || notificationType === 'ORDER_CANCELLED' ||
+  isFailed = Boolean(
+    notificationType === 'ORDER_FAILED' || notificationType === 'ORDER_CANCELLED' ||
     (orderStatus && ['FAILED', 'CANCELLED'].includes(orderStatus)) ||
-    (transactionStatus && ['FAILED', 'CANCELLED'].includes(transactionStatus));
+    (transactionStatus && ['FAILED', 'CANCELLED'].includes(transactionStatus))
+  );
 
   if (!isSuccess && !isFailed) {
     return res.json({ success: true, message: 'Notification ignored.' });
