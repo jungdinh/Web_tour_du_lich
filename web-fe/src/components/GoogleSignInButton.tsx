@@ -4,7 +4,8 @@ import type { User } from '@/types'
 import styles from './GoogleSignInButton.module.css'
 
 interface GoogleSignInButtonProps {
-  mode?: 'signin' | 'signup'
+  mode?: 'signin' | 'signup' | 'link'
+  authenticate?: (credential: string) => Promise<{ user: User; token: string }>
   onSuccess: (data: { user: User; token: string }) => void
   onError: (message: string) => void
 }
@@ -59,8 +60,9 @@ const getApiErrorMessage = (error: unknown) => {
     : 'Không thể đăng nhập bằng Google lúc này.'
 }
 
-export function GoogleSignInButton({ mode = 'signin', onSuccess, onError }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ mode = 'signin', authenticate = authApi.googleLogin, onSuccess, onError }: GoogleSignInButtonProps) {
   const buttonRef = useRef<HTMLDivElement>(null)
+  const authenticateRef = useRef(authenticate)
   const onSuccessRef = useRef(onSuccess)
   const onErrorRef = useRef(onError)
   const loadingRef = useRef(false)
@@ -68,16 +70,17 @@ export function GoogleSignInButton({ mode = 'signin', onSuccess, onError }: Goog
   const [setupError, setSetupError] = useState('')
 
   useEffect(() => {
+    authenticateRef.current = authenticate
     onSuccessRef.current = onSuccess
     onErrorRef.current = onError
-  }, [onSuccess, onError])
+  }, [authenticate, onSuccess, onError])
 
   const handleCredential = useCallback(async (credential: string) => {
     if (!credential || loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
     try {
-      const data = await authApi.googleLogin(credential)
+      const data = await authenticateRef.current(credential)
       onSuccessRef.current(data)
     } catch (error) {
       const message = getApiErrorMessage(error)
@@ -117,7 +120,7 @@ export function GoogleSignInButton({ mode = 'signin', onSuccess, onError }: Goog
           type: 'standard',
           theme: 'outline',
           size: 'medium',
-          text: mode === 'signup' ? 'signup_with' : 'signin_with',
+          text: mode === 'signup' ? 'signup_with' : mode === 'link' ? 'continue_with' : 'signin_with',
           shape: 'rectangular',
           logo_alignment: 'left',
           width: 320,
@@ -140,7 +143,7 @@ export function GoogleSignInButton({ mode = 'signin', onSuccess, onError }: Goog
 
   return (
     <div className={styles.googleAuth}>
-      <div ref={buttonRef} className={styles.button} aria-label={mode === 'signup' ? 'Đăng ký bằng Google' : 'Đăng nhập bằng Google'} />
+      <div ref={buttonRef} className={styles.button} aria-label={mode === 'signup' ? 'Đăng ký bằng Google' : mode === 'link' ? 'Liên kết tài khoản Google' : 'Đăng nhập bằng Google'} />
       {loading && <span className={styles.loading} role="status">Đang xác minh tài khoản Google...</span>}
       {setupError && <span className={styles.setupError} role="alert">{setupError}</span>}
     </div>

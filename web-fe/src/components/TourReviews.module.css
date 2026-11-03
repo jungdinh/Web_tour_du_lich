@@ -38,6 +38,13 @@
   color: #f59e0b;
 }
 
+.starPartial {
+  color: transparent;
+  background: linear-gradient(90deg, #f59e0b 50%, #d7dee8 50%);
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
 .starEmpty {
   color: #d7dee8;
 }
@@ -130,6 +137,10 @@
 .inputStar:focus-visible,
 .inputStarActive:focus-visible,
 .textButton:focus-visible,
+.cancelButton:focus-visible,
+.adminReplyAction:focus-visible,
+.reviewMenuButton:focus-visible,
+.reviewMenuDropdown button:focus-visible,
 .submitButton:focus-visible,
 .loadMore:focus-visible {
   outline: 3px solid rgba(14, 165, 233, .3);
@@ -143,7 +154,8 @@
   font-weight: 700;
 }
 
-.form textarea {
+.form textarea,
+.inlineEditForm textarea {
   min-height: 112px;
   width: 100%;
   resize: vertical;
@@ -156,7 +168,8 @@
   line-height: 1.55;
 }
 
-.form textarea:focus {
+.form textarea:focus,
+.inlineEditForm textarea:focus {
   border-color: var(--color-accent);
   outline: 3px solid rgba(14, 165, 233, .12);
 }
@@ -197,6 +210,7 @@
 }
 
 .textButton,
+.cancelButton,
 .deletePrompt button {
   padding: 8px 0;
   border: 0;
@@ -265,6 +279,13 @@
   gap: 10px;
 }
 
+.reviewHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .avatar {
   display: grid;
   width: 38px;
@@ -296,7 +317,6 @@
 
 .sourceUser,
 .sourceImported {
-  margin-left: auto;
   padding: 4px 8px;
   border-radius: 999px;
   font-size: .68rem;
@@ -312,6 +332,70 @@
 .sourceImported {
   color: #64748b;
   background: #f1f5f9;
+}
+
+.reviewMenu {
+  position: relative;
+}
+
+.reviewMenuButton {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  place-items: center;
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.reviewMenuButton:hover,
+.reviewMenuButton[aria-expanded='true'] {
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+.reviewMenuButton span {
+  transform: translateY(-1px);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.reviewMenuDropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .14);
+}
+
+.reviewMenuDropdown button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.reviewMenuDropdown button:hover {
+  background: var(--color-background);
+}
+
+.reviewMenuDropdown .reviewMenuDelete {
+  color: #dc2626;
 }
 
 .reviewRating {
@@ -333,6 +417,53 @@
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.inlineEditForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 0 48px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-background);
+}
+
+.deleteReviewConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0 0 48px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  background: #fff7f7;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.deleteReviewConfirm > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.confirmDeleteButton {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #dc2626;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.confirmDeleteButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
 }
 
 .adminReply {
@@ -363,7 +494,13 @@
   font-size: .82rem;
 }
 
-.adminReplyHeader span {
+.adminReplyHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adminReplyHeaderActions > span {
   color: var(--color-text-muted);
   font-size: .72rem;
 }
@@ -375,6 +512,26 @@
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.adminReplyAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0 48px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.adminReplyAction:hover {
+  background: var(--color-accent-subtle, #ecfeff);
 }
 
 .adminReplyEditor {
@@ -475,6 +632,9 @@
 
   .reviewRating,
   .reviewText,
+  .inlineEditForm,
+  .deleteReviewConfirm,
+  .adminReplyAction,
   .adminReply,
   .adminReplyEditor {
     margin-left: 0;
@@ -490,5 +650,10 @@
   .replyActions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .deleteReviewConfirm {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

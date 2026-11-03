@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminBooking, AdminBookingDetail, AdminDashboard, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion } from '@/types'
+import type { AdminBooking, AdminBookingDetail, AdminCustomerReview, AdminDashboard, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion, SettingsData, Tag, NotificationItem, CreateNotificationPayload } from '@/types'
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env
 const normalizeApiBaseURL = (value: string) => {
@@ -23,7 +23,7 @@ const api = axios.create({
   baseURL: apiBaseURL,
 })
 
-const BRAND_NAME = 'TourAI'
+const BRAND_NAME = 'Vivu'
 
 const cleanCrawledBrandText = (value?: string | null) => {
   if (!value) return value
@@ -62,7 +62,7 @@ const sanitizeRecommendationPayload = <T extends Record<string, unknown>>(data: 
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth-storage')
+  const token = sessionStorage.getItem('auth-storage')
   if (token) {
     const { state } = JSON.parse(token)
     if (state?.token) {
@@ -76,7 +76,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth-storage')
+      sessionStorage.removeItem('auth-storage')
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login'
       }
@@ -119,6 +119,40 @@ export const authApi = {
   },
 }
 
+export const settingsApi = {
+  getSettings: async () => {
+    const { data } = await api.get<SettingsData>('/settings')
+    return data
+  },
+  updatePassword: async (currentPassword: string | undefined, newPassword: string) => {
+    const { data } = await api.patch<{ message: string }>('/settings/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return data
+  },
+  linkGoogle: async (credential: string) => {
+    const { data } = await api.post<{ user: User; token: string; message: string; previous_email: string }>('/settings/google', { credential })
+    return data
+  },
+  updatePreferences: async (preferences: Tag[]) => {
+    const { data } = await api.put<{ message: string; preferences: Tag[] }>('/settings/preferences', { preferences })
+    return data
+  },
+  deleteSearchHistory: async () => {
+    const { data } = await api.delete<{ message: string; deleted_count: number }>('/settings/history/search')
+    return data
+  },
+  deleteChatHistory: async () => {
+    const { data } = await api.delete<{ message: string; deleted_count: number }>('/settings/history/chat')
+    return data
+  },
+  unlinkGoogle: async () => {
+    const { data } = await api.delete<{ message: string }>('/settings/google')
+    return data
+  },
+}
+
 export const tourApi = {
   getTours: async (params?: {
     page?: number
@@ -147,6 +181,12 @@ export const tourApi = {
   getTourById: async (id: number) => {
     const { data } = await api.get<Tour>(`/tours/${id}`)
     return sanitizeTour(data)
+  },
+  getSimilarTours: async (id: number, limit = 8) => {
+    const { data } = await api.get<Tour[]>(`/tours/${id}/similar`, {
+      params: { limit },
+    })
+    return sanitizeTours(data)
   },
   getTourReviews: async (id: number, page = 1, limit = 10) => {
     const { data } = await api.get<PaginatedResponse<Review>>(`/tours/${id}/reviews`, {
@@ -292,6 +332,25 @@ export const recommendationsPageApi = {
   },
 }
 
+export const notificationApi = {
+  getAll: async (page = 1, limit = 10) => {
+    const { data } = await api.get<PaginatedResponse<NotificationItem>>('/notifications', { params: { page, limit } })
+    return data
+  },
+  getUnreadCount: async () => {
+    const { data } = await api.get<{ unread_count: number }>('/notifications/unread-count')
+    return data.unread_count
+  },
+  markAsRead: async (id: number) => {
+    const { data } = await api.patch<{ id: number; read_at: string }>(`/notifications/${id}/read`)
+    return data
+  },
+  markAllAsRead: async () => {
+    const { data } = await api.patch<{ updated_count: number }>('/notifications/read-all')
+    return data
+  },
+}
+
 
 export const adminApi = {
   getDashboard: async () => {
@@ -342,6 +401,9 @@ export const adminApi = {
   deleteTour: async (id: number) => {
     await api.delete(`/admin/tours/${id}`)
   },
+  bulkDeleteTours: async (ids: number[]) => {
+    await api.post(`/admin/tours/bulk-delete`, { ids })
+  },
   getUsers: async (params?: { page?: number; limit?: number; search?: string; role?: 'all' | 'user' | 'admin'; isActive?: 'all' | 'active' | 'inactive' }) => {
     const { data } = await api.get<PaginatedResponse<AdminUser>>('/admin/users', { params })
     return data
@@ -358,8 +420,20 @@ export const adminApi = {
     const { data } = await api.patch<AdminUser>(`/admin/users/${id}/status`, { is_active })
     return data
   },
+  getReviews: async (params?: { page?: number; limit?: number; search?: string; status?: 'all' | 'pending' | 'replied' }) => {
+    const { data } = await api.get<PaginatedResponse<AdminCustomerReview>>('/admin/reviews', { params })
+    return data
+  },
+  updateUserPassword: async (id: number, password: string) => {
+    const { data } = await api.patch<{ message: string; user: AdminUser }>(`/admin/users/${id}/password`, { password })
+    return data
+  },
   deleteUser: async (id: number) => {
     await api.delete(`/admin/users/${id}`)
+  },
+  createNotification: async (payload: CreateNotificationPayload) => {
+    const { data } = await api.post<{ notification: NotificationItem; recipient_count: number }>('/admin/notifications', payload)
+    return data
   },
 }
 

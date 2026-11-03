@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { TourCard, TourCardSkeleton } from '@/components/TourCard'
+import { useTourImagesReady } from '@/hooks/useTourImagesReady'
 import type { Tour } from '@/types'
 import styles from './Favorites.module.css'
 
@@ -15,6 +16,7 @@ export function FavoritesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const imagesReady = useTourImagesReady(favorites)
 
   const loadFavorites = useCallback(async (pageToLoad = 1) => {
     setLoading(true)
@@ -68,9 +70,9 @@ export function FavoritesPage() {
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {loading ? (
+      {loading || !imagesReady ? (
         <div className={styles.grid}>
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: favorites.length || 4 }).map((_, i) => (
             <TourCardSkeleton key={i} />
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { MapPin, Clock, Star, Plane, Bus, Check, ArrowRight } from 'lucide-react'
 import { actionApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ImageWithFallback } from './ImageWithFallback'
@@ -56,6 +57,7 @@ export interface TourCardProps {
   isFavoriteInitial?: boolean
   onFavoriteChange?: (isFav: boolean) => void
   badge?: string
+  compactOnMobile?: boolean
 }
 
 export function TourCard({
@@ -64,6 +66,7 @@ export function TourCard({
   isFavoriteInitial = false,
   onFavoriteChange,
   badge,
+  compactOnMobile = false,
 }: TourCardProps) {
   const { token } = useAuthStore()
   const [isFav, setIsFav] = useState(isFavoriteInitial)
@@ -122,7 +125,7 @@ export function TourCard({
     .slice(0, 2)
 
   return (
-    <div className={styles.cardWrapper}>
+    <div className={`${styles.cardWrapper} ${compactOnMobile ? styles.compactOnMobile : ''}`}>
       <Link
         to={`/tours/${tour.id}`}
         onClick={handleClick}
@@ -144,7 +147,8 @@ export function TourCard({
               <span className={styles.customBadge}>{badge}</span>
             ) : (
               <span className={styles.locationBadge}>
-                <span className={styles.pinIcon}>📍</span> {location}
+                <MapPin size={12} className={styles.pinIcon} />
+                <span>{location}</span>
               </span>
             )}
 
@@ -173,12 +177,13 @@ export function TourCard({
           {/* Bottom Badges on Image */}
           <div className={styles.bottomBadges}>
             <span className={styles.durationPill}>
-              <span className={styles.clockIcon}>⏱</span> {durationText}
+              <Clock size={12} className={styles.clockIcon} />
+              <span>{durationText}</span>
             </span>
 
             {tour.avg_rating !== undefined && tour.avg_rating > 0 && (
               <div className={styles.ratingBadge}>
-                <span className={styles.starIcon}>★</span>
+                <Star size={12} className={styles.starIcon} fill="#fbbf24" color="#fbbf24" />
                 <span className={styles.ratingValue}>
                   {formatRatingToFive(tour.avg_rating)}
                 </span>
@@ -196,7 +201,17 @@ export function TourCard({
             <span className={styles.categoryLabel}>{location}</span>
             {tour.transport?.vehicle && tour.transport.vehicle.length > 0 && (
               <span className={styles.transportTag}>
-                {tour.transport.vehicle[0].includes('bay') ? '✈️ Máy bay' : '🚌 Xe du lịch'}
+                {tour.transport.vehicle[0].includes('bay') ? (
+                  <>
+                    <Plane size={12} />
+                    <span>Máy bay</span>
+                  </>
+                ) : (
+                  <>
+                    <Bus size={12} />
+                    <span>Xe du lịch</span>
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -210,7 +225,8 @@ export function TourCard({
             <div className={styles.placesList}>
               {topPlaces.map((place, idx) => (
                 <span key={idx} className={styles.placeTag}>
-                  ✓ {place}
+                  <Check size={11} className={styles.checkIcon} />
+                  <span>{place}</span>
                 </span>
               ))}
             </div>
@@ -227,7 +243,7 @@ export function TourCard({
 
             <div className={styles.actionBtn}>
               <span>Khám phá</span>
-              <span className={styles.arrowIcon}>→</span>
+              <ArrowRight size={13} className={styles.arrowIcon} />
             </div>
           </div>
         </div>
@@ -236,9 +252,9 @@ export function TourCard({
   )
 }
 
-export function TourCardSkeleton() {
+export function TourCardSkeleton({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
   return (
-    <div className={`${styles.cardWrapper} ${styles.skeletonCard}`}>
+    <div className={`${styles.cardWrapper} ${styles.skeletonCard} ${compactOnMobile ? styles.compactOnMobile : ''}`}>
       <div className={`${styles.imageContainer} skeleton`} />
       <div className={styles.content}>
         <div className={styles.headerInfo}>

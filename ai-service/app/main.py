@@ -576,7 +576,7 @@ async def chat(
     slot_data = _repair_slot_values(slot_data)
     is_complete = slot_filling_engine.is_complete(slot_data)
 
-    if not is_complete:
+    if not is_complete and not conversation_agent.requests_recommendations_now(request.message):
         missing = slot_filling_engine.get_missing_slots(slot_data)
         destination_suggestions: Optional[List[Dict]] = None
         if "\u0111\u1ecba \u0111i\u1ec3m" in missing and slot_data.get("preferences"):

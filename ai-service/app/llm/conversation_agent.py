@@ -456,12 +456,27 @@ Return valid JSON only, no markdown:
         }
         return {key: value for key, value in (slots or {}).items() if key in allowed}
 
+    def requests_recommendations_now(self, user_message: str) -> bool:
+        """Return True when the user explicitly asks to see tour options now."""
+        text = self._strip_diacritics(user_message)
+        return bool(re.search(
+            r"\b(dua|cho|xem|gui|liet ke|danh sach|ds|goi y|tim)\b.{0,35}\b(tour|lua chon|danh sach|ds)\b|\b(tour|lua chon)\b.{0,35}\b(ngay|luon|bay gio|hien tai)\b",
+            text,
+        ))
     def _guard_context_follow_up(
         self,
         user_message: str,
         decision: ConversationDecision,
         last_recommendations: Optional[List[Dict[str, Any]]] = None,
     ) -> ConversationDecision:
+        if self.requests_recommendations_now(user_message):
+            return ConversationDecision(
+                intent="refine_search" if last_recommendations else "new_search",
+                should_recommend=True,
+                slots_patch=decision.slots_patch,
+                referenced_tour_indexes=[],
+                answer="",
+            )
         if not last_recommendations:
             return decision
 

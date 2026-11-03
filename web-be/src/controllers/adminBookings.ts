@@ -23,14 +23,14 @@ const parseId = (value: string) => {
 
 const adminBookingFromClause = `
   FROM bookings b
-  JOIN users u ON u.id = b.user_id
+  LEFT JOIN users u ON u.id = b.user_id
   ${bookingPaymentJoin('b')}`;
 
 const mapAdminBooking = (row: Record<string, unknown>) => ({
   ...mapBookingBase(row),
-  user_id: Number(row.user_id),
-  user_name: String(row.user_name || ''),
-  user_email: String(row.user_email || ''),
+  user_id: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+  user_name: String(row.user_name || row.contact_name || ''),
+  user_email: String(row.user_email || row.contact_email || ''),
 });
 
 const mapPayment = (row: Record<string, unknown>) => ({

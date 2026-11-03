@@ -71,7 +71,7 @@ Các nhóm biến quan trọng:
 - Google: `GOOGLE_CLIENT_ID` ở backend và `VITE_GOOGLE_CLIENT_ID` ở frontend.
 - AI: `LLM_PROVIDER`, `DEEPSEEK_*`, hoặc `GEMINI_*`, cùng `API_KEY` cho bảo vệ AI Service.
 - Payment: `SEPAY_PAYMENT_MODE`, merchant/IPN secret hoặc thông tin VietQR.
-- Admin seed: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `ADMIN_SYNC_PASSWORD`.
+- Admin seed: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `ADMIN_SYNC_PASSWORD`. Mật khẩu local phải dài 12-24 ký tự, có chữ hoa, số, ký tự đặc biệt và không xuất hiện trong dữ liệu mật khẩu đã rò rỉ. Giữ `ADMIN_SYNC_PASSWORD=false` nếu muốn mật khẩu admin thay đổi từ trang quản trị không bị ghi đè khi backend khởi động lại.
 
 Chi tiết đầy đủ nằm trong [`docs/Cap_nhat_du_an.md`](docs/Cap_nhat_du_an.md).
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { tourApi, recommendationsPageApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { TourCard, TourCardSkeleton } from '@/components/TourCard'
+import { useTourImagesReady } from '@/hooks/useTourImagesReady'
 import type { Tour, Recommendation } from '@/types'
 import styles from './Recommendations.module.css'
 
@@ -54,6 +55,7 @@ export function RecommendationsPage() {
   }, [token])
 
   const toursToRender: (Tour | Recommendation)[] = coldStart ? popularFallback : recommendations
+  const imagesReady = useTourImagesReady(toursToRender)
 
   return (
     <div className="container">
@@ -83,9 +85,9 @@ export function RecommendationsPage() {
         )}
       </div>
 
-      {loading ? (
+      {loading || !imagesReady ? (
         <div className={styles.grid}>
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: toursToRender.length || 8 }).map((_, i) => (
             <TourCardSkeleton key={i} />
           ))}
         </div>

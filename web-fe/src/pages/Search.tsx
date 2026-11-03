@@ -1,9 +1,23 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import {
+  Search as SearchIcon,
+  MapPin,
+  Clock,
+  BadgeDollarSign,
+  Sparkles,
+  X,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+} from 'lucide-react'
 import { tourApi, actionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { TourCard, TourCardSkeleton } from '@/components/TourCard'
+import { useTourImagesReady } from '@/hooks/useTourImagesReady'
 import type { Tour } from '@/types'
+import { Dropdown } from '@/components/Dropdown'
 import styles from './Search.module.css'
 
 const QUICK_TAGS = [
@@ -52,6 +66,7 @@ export function SearchPage() {
   const [destinationOptions, setDestinationOptions] = useState<Array<{ name: string; tour_count: number }>>([])
   const [sortBy, setSortBy] = useState('popular')
   const loggedQuery = useRef<string | null>(null)
+  const imagesReady = useTourImagesReady(tours)
 
   const query = searchParams.get('q') || ''
   const [searchText, setSearchText] = useState(query)
@@ -159,8 +174,17 @@ export function SearchPage() {
     setSearchParams(newParams)
   }
 
-  const applyFilters = () => {
+  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
+    if (event) event.preventDefault()
     const newParams = new URLSearchParams(searchParams)
+    const nextQuery = searchText.trim()
+
+    if (nextQuery) {
+      newParams.set('q', nextQuery)
+    } else {
+      newParams.delete('q')
+    }
+
     newParams.set('travelType', draftTravelType)
 
     if (draftDestination) {
@@ -192,20 +216,6 @@ export function SearchPage() {
     setSearchParams(newParams)
   }
 
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const newParams = new URLSearchParams(searchParams)
-    const nextQuery = searchText.trim()
-
-    if (nextQuery) {
-      newParams.set('q', nextQuery)
-    } else {
-      newParams.delete('q')
-    }
-    newParams.set('page', '1')
-    setSearchParams(newParams)
-  }
-
   const handleQuickTagClick = (tag: string) => {
     setSearchText(tag)
     const newParams = new URLSearchParams(searchParams)
@@ -226,63 +236,18 @@ export function SearchPage() {
 
   return (
     <div className="container">
-      {/* SEARCH HERO BANNER */}
-      <div className={styles.heroBanner}>
-        <div className={styles.heroContent}>
-          <div className={styles.badgeRow}>
-            <span className={styles.eyebrowBadge}>✨ Khám phá tour du lịch 2026</span>
+      {/* COMPACT UNIFIED SEARCH CARD */}
+      <div className={styles.searchContainer}>
+        {/* Top Header Row: Title & Travel Type Selector */}
+        <div className={styles.searchHeaderRow}>
+          <div className={styles.titleGroup}>
+            <span className={styles.eyebrowBadge}>
+              <Sparkles size={13} className={styles.sparkleIcon} />
+              <span>Khám phá tour du lịch 2026</span>
+            </span>
+            <h1 className={styles.pageTitle}>Tìm kiếm hành trình mơ ước</h1>
           </div>
-          <h1 className={styles.title}>Tìm kiếm hành trình mơ ước</h1>
-          <p className={styles.subtitle}>
-            Trải nghiệm hàng trăm tour du lịch được tuyển chọn và cá nhân hóa với sự hỗ trợ của AI
-          </p>
 
-          <form className={styles.searchBox} onSubmit={handleSearchSubmit}>
-            <div className={styles.inputWrapper}>
-              <span className={styles.searchIcon}>🔍</span>
-              <input
-                type="search"
-                placeholder="Tìm điểm đến, tên tour, hoạt động yêu thích (ví dụ: Đà Lạt, Phú Quốc, Sapa)..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className={styles.searchInput}
-              />
-              {searchText && (
-                <button
-                  type="button"
-                  className={styles.clearInputBtn}
-                  onClick={() => setSearchText('')}
-                  title="Xóa tìm kiếm"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <button type="submit" className={styles.searchBtn}>
-              Tìm kiếm
-            </button>
-          </form>
-
-          {/* Quick Tags */}
-          <div className={styles.quickTags}>
-            <span className={styles.quickTagsLabel}>Gợi ý:</span>
-            {QUICK_TAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className={`${styles.quickTagBtn} ${query === tag ? styles.quickTagActive : ''}`}
-                onClick={() => handleQuickTagClick(tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER CONTROLS BAR */}
-      <div className={styles.filterSection}>
-        <div className={styles.filtersTopBar}>
           <div className={styles.travelTypeToggle}>
             <button
               type="button"
@@ -299,132 +264,196 @@ export function SearchPage() {
               Quốc tế
             </button>
           </div>
-
-          <div className={styles.sortWrapper}>
-            <label className={styles.sortLabel}>Sắp xếp:</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className={styles.sortSelect}
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
-        <div className={styles.filtersGrid}>
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>📍 Điểm đến</label>
-            <select
+        {/* Compound Search Bar */}
+        <form className={styles.compoundBar} onSubmit={handleSearchSubmit}>
+          {/* Keyword Input */}
+          <div className={styles.barFieldKeyword}>
+            <label className={styles.fieldLabel}>
+              <SearchIcon size={14} className={styles.fieldIcon} />
+              <span>Từ khóa / Tour</span>
+            </label>
+            <div className={styles.fieldInputWrapper}>
+              <input
+                type="search"
+                placeholder="Tên tour, hoạt động, trải nghiệm..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className={styles.barInput}
+              />
+              {searchText && (
+                <button
+                  type="button"
+                  className={styles.clearInputBtn}
+                  onClick={() => setSearchText('')}
+                  title="Xóa tìm kiếm"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.barDivider} />
+
+          {/* Destination Dropdown */}
+          <div className={styles.barField}>
+            <label className={styles.fieldLabel}>
+              <MapPin size={14} className={styles.fieldIcon} />
+              <span>Điểm đến</span>
+            </label>
+            <Dropdown
+              className={styles.barDropdown}
               value={draftDestination}
-              onChange={(e) => setDraftDestination(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">Tất cả điểm đến</option>
-              {destinationOptions.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name} ({item.tour_count})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setDraftDestination(val)}
+              options={[
+                { value: '', label: 'Tất cả điểm đến' },
+                ...destinationOptions.map((item) => ({
+                  value: item.name,
+                  label: `${item.name} (${item.tour_count})`,
+                })),
+              ]}
+            />
           </div>
 
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>⏱ Thời gian</label>
-            <select
+          <div className={styles.barDivider} />
+
+          {/* Duration Dropdown */}
+          <div className={styles.barField}>
+            <label className={styles.fieldLabel}>
+              <Clock size={14} className={styles.fieldIcon} />
+              <span>Thời gian</span>
+            </label>
+            <Dropdown
+              className={styles.barDropdown}
               value={draftDuration}
-              onChange={(e) => setDraftDuration(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">Tất cả thời lượng</option>
-              {DURATIONS.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setDraftDuration(val)}
+              options={[
+                { value: '', label: 'Tất cả thời lượng' },
+                ...DURATIONS.map((d) => ({ value: String(d.value), label: d.label })),
+              ]}
+            />
           </div>
 
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>💰 Mức giá</label>
-            <select
+          <div className={styles.barDivider} />
+
+          {/* Price Range Dropdown */}
+          <div className={styles.barField}>
+            <label className={styles.fieldLabel}>
+              <BadgeDollarSign size={14} className={styles.fieldIcon} />
+              <span>Mức giá</span>
+            </label>
+            <Dropdown
+              className={styles.barDropdown}
               value={draftPriceRange}
-              onChange={(e) => setDraftPriceRange(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">Tất cả mức giá</option>
-              {PRICE_RANGES.map((p) => (
-                <option key={p.label} value={`${p.min}-${p.max}`}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setDraftPriceRange(val)}
+              options={[
+                { value: '', label: 'Tất cả mức giá' },
+                ...PRICE_RANGES.map((p) => ({ value: `${p.min}-${p.max}`, label: p.label })),
+              ]}
+            />
           </div>
 
-          <div className={styles.filterActions}>
-            <button type="button" className={styles.filterBtn} onClick={applyFilters}>
-              Lọc kết quả
-            </button>
-            {hasActiveFilters && (
-              <button type="button" className={styles.resetBtn} onClick={handleResetFilters}>
-                ✕ Đặt lại
+          {/* Action CTA Button */}
+          <button type="submit" className={styles.barSubmitBtn} title="Tìm kiếm tour">
+            <SearchIcon size={18} />
+            <span>Tìm kiếm</span>
+          </button>
+        </form>
+
+        {/* Quick Suggestion Chips & Reset */}
+        <div className={styles.quickTagsBar}>
+          <div className={styles.quickTagsList}>
+            <span className={styles.quickTagsLabel}>Gợi ý phổ biến:</span>
+            {QUICK_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className={`${styles.quickTagChip} ${query === tag ? styles.quickTagChipActive : ''}`}
+                onClick={() => handleQuickTagClick(tag)}
+              >
+                {tag}
               </button>
-            )}
+            ))}
           </div>
+
+          {hasActiveFilters && (
+            <button type="button" className={styles.resetBtn} onClick={handleResetFilters}>
+              <RotateCcw size={13} />
+              <span>Đặt lại bộ lọc</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* RESULTS HEADER */}
+      {/* RESULTS HEADER (WITH INLINE SORT) */}
       <div className={styles.resultsHeader}>
-        <div className={styles.resultsCount}>
-          <span className={styles.resultsPulseDot} />
-          {loading ? (
-            <span>Đang tìm kiếm tour...</span>
-          ) : (
-            <span>
-              Tìm thấy <strong>{totalCount}</strong> tour phù hợp
-            </span>
+        <div className={styles.resultsInfo}>
+          <div className={styles.resultsCount}>
+            <span className={styles.resultsPulseDot} />
+            {loading ? (
+              <span>Đang tìm kiếm tour...</span>
+            ) : (
+              <span>
+                Tìm thấy <strong>{totalCount}</strong> tour phù hợp
+              </span>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <div className={styles.activePills}>
+              {query && (
+                <span className={styles.activePill}>
+                  <span>Từ khóa: "{query}"</span>
+                  <button type="button" onClick={() => updateFilter('q', undefined)} aria-label="Xóa từ khóa">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {destination && (
+                <span className={styles.activePill}>
+                  <span>Điểm đến: {destination}</span>
+                  <button type="button" onClick={() => updateFilter('destination', undefined)} aria-label="Xóa điểm đến">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {duration && (
+                <span className={styles.activePill}>
+                  <span>Thời lượng: {duration} ngày</span>
+                  <button type="button" onClick={() => updateFilter('duration', undefined)} aria-label="Xóa thời lượng">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+            </div>
           )}
         </div>
 
-        {hasActiveFilters && (
-          <div className={styles.activePills}>
-            {query && (
-              <span className={styles.activePill}>
-                Từ khóa: "{query}"
-                <button type="button" onClick={() => updateFilter('q', undefined)}>✕</button>
-              </span>
-            )}
-            {destination && (
-              <span className={styles.activePill}>
-                Điểm đến: {destination}
-                <button type="button" onClick={() => updateFilter('destination', undefined)}>✕</button>
-              </span>
-            )}
-            {duration && (
-              <span className={styles.activePill}>
-                Thời lượng: {duration} ngày
-                <button type="button" onClick={() => updateFilter('duration', undefined)}>✕</button>
-              </span>
-            )}
-          </div>
-        )}
+        <div className={styles.sortWrapper}>
+          <label className={styles.sortLabel}>Sắp xếp:</label>
+          <Dropdown
+            className={styles.sortSelect}
+            value={sortBy}
+            onChange={(val) => setSortBy(val)}
+            options={SORT_OPTIONS}
+          />
+        </div>
       </div>
 
       {/* TOUR GRID OR SKELETON */}
-      {loading ? (
+      {loading || !imagesReady ? (
         <div className={styles.tourGrid}>
-          {Array.from({ length: 8 }).map((_, idx) => (
-            <TourCardSkeleton key={idx} />
+          {Array.from({ length: tours.length || 8 }).map((_, idx) => (
+            <TourCardSkeleton key={idx} compactOnMobile />
           ))}
         </div>
       ) : tours.length === 0 ? (
         <div className={styles.empty}>
-          <div className={styles.emptyIcon}>🏖️</div>
+          <div className={styles.emptyIcon}>
+            <Compass size={48} className={styles.compassIcon} />
+          </div>
           <h3 className={styles.emptyTitle}>Không tìm thấy tour phù hợp</h3>
           <p className={styles.emptySubtitle}>
             Hãy thử thay đổi từ khóa, điều chỉnh khoảng giá hoặc xóa bộ lọc để xem nhiều tour hơn.
@@ -437,7 +466,7 @@ export function SearchPage() {
         <>
           <div className={styles.tourGrid}>
             {tours.map((tour) => (
-              <TourCard key={tour.id} tour={tour} />
+              <TourCard key={tour.id} tour={tour} compactOnMobile />
             ))}
           </div>
 
@@ -450,7 +479,8 @@ export function SearchPage() {
                 onClick={() => updateFilter('page', (page - 1).toString())}
                 className={styles.pageBtn}
               >
-                ← Trang trước
+                <ChevronLeft size={16} />
+                <span>Trang trước</span>
               </button>
               
               <div className={styles.pageIndicator}>
@@ -463,7 +493,8 @@ export function SearchPage() {
                 onClick={() => updateFilter('page', (page + 1).toString())}
                 className={styles.pageBtn}
               >
-                Trang sau →
+                <span>Trang sau</span>
+                <ChevronRight size={16} />
               </button>
             </div>
           )}

@@ -486,7 +486,7 @@ export function ChatPage() {
                 </div>
                 <div className={styles.aiHeaderInfo}>
                   <div className={styles.aiTitleRow}>
-                    <h1>TourAI Assistant</h1>
+                    <h1>Vivu Assistant</h1>
                     <span className={styles.aiStatusBadge}>
                       <span className={styles.statusDot} /> Trực tuyến
                     </span>
@@ -524,7 +524,7 @@ export function ChatPage() {
                       Xin chào {user?.name || 'bạn'}, bạn muốn đi du lịch ở đâu?
                     </h2>
                     <p className={styles.heroSubtitle}>
-                      Hãy chọn nhanh một gợi ý hành trình bên dưới hoặc nhập trực tiếp mong muốn của bạn vào ô chat để TourAI lên lịch trình nhé.
+                      Hãy chọn nhanh một gợi ý hành trình bên dưới hoặc nhập trực tiếp mong muốn của bạn vào ô chat để Vivu lên lịch trình nhé.
                     </p>
                   </div>
 
@@ -600,7 +600,7 @@ export function ChatPage() {
                             >
                               <div className={styles.msgMetaHeader}>
                                 <span className={styles.msgSenderName}>
-                                  {msg.role === 'user' ? (user?.name || 'Bạn') : 'TourAI Assistant'}
+                                  {msg.role === 'user' ? (user?.name || 'Bạn') : 'Vivu Assistant'}
                                 </span>
                                 {msg.created_at && (
                                   <span className={styles.msgTime}>{formatMessageTime(msg.created_at)}</span>
@@ -709,7 +709,7 @@ export function ChatPage() {
                               <span className={styles.waveDot} />
                               <span className={styles.waveDot} />
                             </div>
-                            <span className={styles.loadingText}>TourAI đang phân tích sở thích & chọn tour tối ưu...</span>
+                            <span className={styles.loadingText}>Vivu đang phân tích sở thích & chọn tour tối ưu...</span>
                           </div>
                         </div>
                       </div>

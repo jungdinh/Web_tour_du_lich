@@ -5,24 +5,259 @@
 /* HERO SECTION */
 .hero {
   position: relative;
-  background: radial-gradient(120% 120% at 50% 10%, #f0fdfa 0%, #ffffff 60%, #f8fafc 100%);
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(153, 246, 228, 0.34) 0%, transparent 30%),
+    radial-gradient(circle at 8% 42%, rgba(45, 212, 191, 0.14) 0%, transparent 28%),
+    radial-gradient(circle at 92% 38%, rgba(56, 189, 248, 0.15) 0%, transparent 27%),
+    linear-gradient(145deg, #e9f9f6 0%, #effafa 38%, #edf7fb 68%, #f4f9fc 100%);
   padding: var(--space-16) 0 var(--space-12);
   text-align: center;
   overflow: hidden;
   border-bottom: 1px solid var(--color-border);
 }
 
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: radial-gradient(circle, rgba(13, 148, 136, 0.22) 1px, transparent 1.5px);
+  background-position: center;
+  background-size: 30px 30px;
+  opacity: 0.28;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, rgba(0, 0, 0, 0.7) 38%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, rgba(0, 0, 0, 0.7) 38%, transparent 78%);
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -8%;
+  bottom: -255px;
+  left: -8%;
+  z-index: 0;
+  height: 390px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.28) 0%, transparent 58%),
+    linear-gradient(100deg, rgba(20, 184, 166, 0.1), rgba(14, 165, 233, 0.11));
+  border: 1px solid rgba(14, 165, 233, 0.1);
+  border-radius: 50% 50% 0 0 / 36% 36% 0 0;
+  transform: rotate(-1.5deg);
+  pointer-events: none;
+}
+
 .heroBackgroundGlow {
   position: absolute;
-  top: -20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 800px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(2, 132, 199, 0.06) 50%, transparent 70%);
-  filter: blur(60px);
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.78) 0 6%, transparent 30%),
+    radial-gradient(circle at 22% 76%, rgba(45, 212, 191, 0.16) 0 3%, transparent 23%),
+    radial-gradient(circle at 78% 72%, rgba(56, 189, 248, 0.15) 0 4%, transparent 25%);
   pointer-events: none;
   z-index: 0;
+}
+
+.heroBackgroundGlow::before,
+.heroBackgroundGlow::after {
+  content: '';
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border: 1px solid rgba(13, 148, 136, 0.09);
+  border-radius: 50%;
+}
+
+.heroBackgroundGlow::before {
+  top: -205px;
+  left: 7%;
+  box-shadow:
+    0 0 0 48px rgba(13, 148, 136, 0.025),
+    0 0 0 96px rgba(13, 148, 136, 0.018);
+}
+
+.heroBackgroundGlow::after {
+  right: 5%;
+  bottom: -225px;
+  border-color: rgba(2, 132, 199, 0.1);
+  box-shadow:
+    0 0 0 52px rgba(2, 132, 199, 0.025),
+    0 0 0 104px rgba(2, 132, 199, 0.018);
+}
+
+.heroFloatingLayer {
+  position: absolute;
+  inset: 0;
+  width: min(100%, 1600px);
+  margin: 0 auto;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.heroDestinationCard {
+  position: absolute;
+  width: 215px;
+  aspect-ratio: 1.45;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 18px 42px rgba(15, 51, 64, 0.18);
+  color: #ffffff;
+  pointer-events: auto;
+  text-align: left;
+  transform: rotate(var(--card-rotation));
+  transition: transform 280ms ease, box-shadow 280ms ease;
+  animation: heroCardReveal 600ms ease both;
+}
+
+.heroDestinationCard:hover {
+  transform: translateY(-8px) rotate(0deg);
+  box-shadow: 0 24px 50px rgba(15, 51, 64, 0.24);
+}
+
+.heroDestinationImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #0f766e, #0284c7) !important;
+  object-fit: cover;
+  transition: transform 500ms ease;
+}
+
+.heroDestinationImage span {
+  max-width: 85%;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700;
+  text-align: center;
+}
+
+.heroDestinationCard:hover .heroDestinationImage {
+  transform: scale(1.08);
+}
+
+.heroDestinationOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 20, 35, 0.04) 20%, rgba(8, 20, 35, 0.78) 100%);
+}
+
+.heroDestinationRating {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f766e;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.heroDestinationInfo {
+  position: absolute;
+  right: 14px;
+  bottom: 13px;
+  left: 14px;
+  display: grid;
+  gap: 2px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+.heroDestinationInfo strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heroDestinationInfo small {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.heroCardTopLeft {
+  --card-rotation: -5deg;
+  top: 116px;
+  left: 5%;
+}
+
+.heroCardBottomLeft {
+  --card-rotation: 4deg;
+  bottom: 68px;
+  left: 10%;
+  width: 195px;
+  animation-delay: 100ms;
+}
+
+.heroCardBottomLeft .heroDestinationImage {
+  background: linear-gradient(135deg, #0891b2, #67d3c8 62%, #f2cb7d) !important;
+}
+
+.heroCardTopRight {
+  --card-rotation: 5deg;
+  top: 116px;
+  right: 5%;
+  animation-delay: 160ms;
+}
+
+.heroCardTopRight .heroDestinationImage {
+  background: linear-gradient(135deg, #5b496d, #d98591 62%, #f4c9b2) !important;
+}
+
+.heroCardBottomRight {
+  --card-rotation: -4deg;
+  right: 10%;
+  bottom: 68px;
+  width: 195px;
+  animation-delay: 220ms;
+}
+
+.heroCardBottomRight .heroDestinationImage {
+  background: linear-gradient(135deg, #54356c, #cf706c 62%, #f2bb58) !important;
+}
+
+.heroRouteLineLeft,
+.heroRouteLineRight {
+  position: absolute;
+  z-index: 0;
+  width: 260px;
+  height: 120px;
+  border-top: 2px dashed rgba(13, 148, 136, 0.25);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.heroRouteLineLeft {
+  top: 290px;
+  left: 12%;
+  transform: rotate(-16deg);
+}
+
+.heroRouteLineRight {
+  top: 280px;
+  right: 12%;
+  border-color: rgba(2, 132, 199, 0.22);
+  transform: rotate(16deg);
+}
+
+@keyframes heroCardReveal {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
 }
 
 .heroContent {
@@ -32,7 +267,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 1;
+  z-index: 2;
 }
 
 .heroBadge {
@@ -258,14 +493,300 @@
   transform: translateX(4px);
 }
 
+.heroQuickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: var(--space-5);
+}
+
+.heroQuickLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.04);
+  transition: border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.heroQuickLink:hover {
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-hover);
+  transform: translateY(-2px);
+}
+
+.mobileDestinationRail {
+  display: none;
+}
+
+.mobileDestinationCard {
+  position: relative;
+  min-height: 156px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  color: #ffffff;
+  text-align: left;
+  box-shadow: 0 14px 30px rgba(15, 51, 64, 0.16);
+  scroll-snap-align: start;
+}
+
+.mobileDestinationImage,
+.mobileDestinationOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mobileDestinationImage {
+  background: linear-gradient(135deg, #0f766e, #0284c7) !important;
+  object-fit: cover;
+}
+
+.mobileDestinationOverlay {
+  background: linear-gradient(180deg, rgba(8, 20, 35, 0.04) 24%, rgba(8, 20, 35, 0.82) 100%);
+}
+
+.mobileDestinationRating {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f766e;
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+
+.mobileDestinationInfo {
+  position: absolute;
+  right: 14px;
+  bottom: 13px;
+  left: 14px;
+  display: grid;
+  gap: 3px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+.mobileDestinationInfo strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileDestinationInfo small {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.94;
+}
+
+@media (max-width: 1440px) {
+  .heroDestinationCard {
+    width: 180px;
+  }
+
+  .heroCardTopLeft {
+    left: 2%;
+  }
+
+  .heroCardTopRight {
+    right: 2%;
+  }
+
+  .heroCardBottomLeft,
+  .heroCardBottomRight {
+    display: none;
+  }
+}
+
+@media (max-width: 1120px) {
+  .heroFloatingLayer,
+  .heroRouteLineLeft,
+  .heroRouteLineRight {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
+  .hero {
+    padding: var(--space-10) 0 var(--space-8);
+    text-align: left;
+  }
+
+  .hero::before {
+    background-size: 24px 24px;
+    opacity: 0.22;
+  }
+
+  .hero::after {
+    right: -30%;
+    bottom: -300px;
+    left: -30%;
+  }
+
+  .heroContent {
+    align-items: stretch;
+    max-width: 620px;
+  }
+
+  .heroBadge {
+    align-self: flex-start;
+    max-width: 100%;
+    margin-bottom: var(--space-4);
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .heroTitle {
+    margin-bottom: var(--space-4);
+    font-size: clamp(2rem, 9vw, 2.75rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .heroTitle br {
+    display: none;
+  }
+
+  .heroSubtitle {
+    max-width: 580px;
+    margin-bottom: var(--space-5);
+    font-size: 0.96rem;
+    line-height: 1.6;
+  }
+
+  .heroSearchForm {
+    margin-bottom: var(--space-3);
+    padding: 7px;
+    border-radius: 20px;
+    gap: 7px;
+  }
+
+  .heroSearchInputWrap {
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .heroSearchInput {
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+
+  .heroSearchBtn {
+    min-height: 44px;
+  }
+
+  .heroAiAction {
+    justify-content: flex-start;
+    margin-top: var(--space-3);
+  }
+
   .heroAiBtn {
+    width: 100%;
+    justify-content: flex-start;
     padding: 10px 16px;
     font-size: 0.84375rem;
     gap: 8px;
+    border-radius: 18px;
   }
+
+  .heroAiText {
+    flex: 1;
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
+
   .heroAiBadge {
     display: none;
+  }
+
+  .heroQuickLinks {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    margin-top: var(--space-4);
+    padding: 2px 2px 8px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .heroQuickLinks::-webkit-scrollbar {
+    display: none;
+  }
+
+  .heroQuickLink {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .mobileDestinationRail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(220px, 72%);
+    gap: 12px;
+    width: 100%;
+    margin-top: var(--space-4);
+    padding: 2px 2px 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .mobileDestinationRail::-webkit-scrollbar {
+    display: none;
+  }
+
+}
+
+@media (max-width: 480px) {
+  .hero {
+    padding: var(--space-8) 0 var(--space-7);
+  }
+
+  .heroTitle {
+    font-size: clamp(1.9rem, 10.5vw, 2.35rem);
+  }
+
+  .heroSubtitle {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  .mobileDestinationRail {
+    grid-auto-columns: minmax(220px, 84%);
+  }
+
+  .mobileDestinationCard {
+    min-height: 148px;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroDestinationCard {
+    animation: none;
+    transition: none;
+  }
+
+  .heroDestinationImage {
+    transition: none;
   }
 }
 
@@ -405,6 +926,11 @@
   box-shadow: var(--shadow-xl);
 }
 
+.ctaContent {
+  position: relative;
+  z-index: 1;
+}
+
 .ctaBadge {
   display: inline-block;
   padding: 4px 12px;
@@ -486,91 +1012,123 @@
 }
 
 @media (max-width: 768px) {
+  .section {
+    padding: var(--space-9) 0;
+  }
+
+  .sectionHeader {
+    align-items: flex-start;
+    margin-bottom: var(--space-5);
+    gap: var(--space-3);
+  }
+
+  .sectionTitle {
+    font-size: clamp(1.45rem, 6.5vw, 1.8rem);
+    line-height: 1.2;
+  }
+
+  .sectionLink {
+    padding: 7px 11px;
+    background: var(--color-accent-subtle);
+    border: 1px solid var(--color-accent-border);
+    border-radius: var(--radius-full);
+    font-size: 0.8125rem;
+  }
+
+  .tabList {
+    margin-right: calc(var(--space-4) * -1);
+    margin-bottom: var(--space-3);
+    padding-right: var(--space-4);
+    padding-bottom: var(--space-3);
+    scroll-snap-type: x proximity;
+  }
+
+  .tabBtn {
+    min-height: 38px;
+    padding: 7px 13px;
+    font-size: 0.8125rem;
+    scroll-snap-align: start;
+  }
+
+  .tourGrid {
+    gap: var(--space-4);
+  }
+
+  .noTours {
+    padding: var(--space-8) var(--space-4);
+  }
+
   .ctaBanner {
     grid-template-columns: 1fr;
+    gap: var(--space-5);
     padding: var(--space-6);
+    border-radius: 20px;
   }
+
   .ctaDecoration {
     display: none;
   }
+
+  .ctaBannerSection {
+    padding: var(--space-4) 0 var(--space-8);
+  }
+
+  .ctaTitle {
+    font-size: clamp(1.55rem, 7vw, 1.9rem);
+  }
+
+  .ctaDesc {
+    margin-bottom: var(--space-5);
+    font-size: 0.9rem;
+  }
+
+  .ctaBtn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 18px;
+  }
 }
 
-/* FEATURES */
-.features {
-  padding: var(--space-16) 0;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-}
+@media (max-width: 480px) {
+  .section {
+    padding: var(--space-8) 0;
+  }
 
-.featuresHeader {
-  text-align: center;
-  margin-bottom: var(--space-12);
-}
+  .sectionHeader {
+    display: grid;
+  }
 
-.featureGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-6);
-}
-
-.featureCard {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  padding: var(--space-6);
-  transition: transform var(--transition-smooth), box-shadow var(--transition-smooth), border-color var(--transition-smooth);
-}
-
-.featureCard:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: #cbd5e1;
-  background: #ffffff;
-}
-
-.featureIconWrap {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  margin-bottom: var(--space-4);
-}
-
-.iconTeal {
-  background: var(--color-accent-subtle);
-  border: 1px solid var(--color-accent-border);
-}
-
-.iconBlue {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-}
-
-.iconAmber {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-}
-
-.featureTitle {
-  font-family: var(--font-sans);
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin-bottom: var(--space-2);
-}
-
-.featureDesc {
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.6;
+  .sectionLink {
+    width: max-content;
+  }
 }
 
 /* DARK MODE OVERRIDES FOR HOME */
 [data-theme='dark'] .hero {
-  background: radial-gradient(120% 120% at 50% 10%, #0d1b2a 0%, #090e17 60%, #090e17 100%);
+  background:
+    radial-gradient(circle at 50% 8%, rgba(20, 184, 166, 0.15) 0%, transparent 31%),
+    radial-gradient(circle at 8% 42%, rgba(13, 148, 136, 0.11) 0%, transparent 28%),
+    radial-gradient(circle at 92% 38%, rgba(14, 165, 233, 0.11) 0%, transparent 27%),
+    linear-gradient(145deg, #0c1b25 0%, #0d1a24 42%, #0b1724 72%, #09121d 100%);
+}
+
+[data-theme='dark'] .hero::before {
+  background-image: radial-gradient(circle, rgba(45, 212, 191, 0.2) 1px, transparent 1.5px);
+  opacity: 0.2;
+}
+
+[data-theme='dark'] .hero::after {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(15, 23, 42, 0.16) 0%, transparent 58%),
+    linear-gradient(100deg, rgba(13, 148, 136, 0.11), rgba(2, 132, 199, 0.11));
+  border-color: rgba(45, 212, 191, 0.08);
+}
+
+[data-theme='dark'] .heroBackgroundGlow {
+  background:
+    radial-gradient(circle at 50% 14%, rgba(20, 184, 166, 0.08) 0 6%, transparent 30%),
+    radial-gradient(circle at 22% 76%, rgba(13, 148, 136, 0.1) 0 3%, transparent 23%),
+    radial-gradient(circle at 78% 72%, rgba(2, 132, 199, 0.1) 0 4%, transparent 25%);
 }
 
 [data-theme='dark'] .heroBadge {
@@ -592,6 +1150,11 @@
   background: radial-gradient(100% 100% at 50% 0%, #17263b 0%, var(--color-surface) 100%);
 }
 
+[data-theme='dark'] .heroQuickLink {
+  background: rgba(20, 29, 46, 0.82);
+  border-color: var(--color-border);
+}
+
 [data-theme='dark'] .tabBtn {
   background: var(--color-surface);
   border-color: var(--color-border);
@@ -606,14 +1169,4 @@
 [data-theme='dark'] .ctaChatBubble {
   background: rgba(20, 29, 46, 0.95);
   border-color: var(--color-border);
-}
-
-[data-theme='dark'] .featureCard {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-[data-theme='dark'] .featureCard:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
 }

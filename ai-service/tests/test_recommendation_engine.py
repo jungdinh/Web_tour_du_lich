@@ -2,6 +2,7 @@ import time
 import unittest
 
 from app.engine.engine_db import RecommendationEngineDB
+from app.llm.conversation_agent import ConversationAgent
 from app.llm.slot_filling import SlotFillingEngine
 
 
@@ -44,6 +45,35 @@ class SlotFillingTests(unittest.TestCase):
         self.assertLess(elapsed, 0.1)
         self.assertEqual(slots["destination"], "Đà Lạt")
         self.assertEqual(slots["duration"], 3)
+    def test_extracts_europe_as_destination(self):
+        engine = SlotFillingEngine()
+
+        slots = engine.extract_slots("europe")
+
+        self.assertEqual(slots["destination"], "Châu Âu")
+
+    def test_departure_city_does_not_replace_existing_destination(self):
+        engine = SlotFillingEngine()
+
+        slots = engine.extract_slots(
+            "from tp hcm, private tour",
+            current_slots={"destination": "Châu Âu"},
+        )
+
+        self.assertEqual(slots["destination"], "Châu Âu")
+
+
+class ConversationAgentTests(unittest.TestCase):
+    def test_explicit_list_request_forces_recommendation(self):
+        agent = ConversationAgent()
+
+        decision = agent.analyze(
+            "đưa mình xem danh sách tour ngay",
+            current_slots={},
+        )
+
+        self.assertTrue(decision.should_recommend)
+        self.assertTrue(agent.requests_recommendations_now("đưa mình xem danh sách tour ngay"))
 
 if __name__ == "__main__":
     unittest.main()

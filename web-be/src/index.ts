@@ -13,6 +13,8 @@ import { favoriteRouter } from './routes/favorites.js';
 import { adminRouter } from './routes/admin.js';
 import { bookingRouter } from './routes/bookings.js';
 import { paymentRouter } from './routes/payments.js';
+import { settingsRouter } from './routes/settings.js';
+import { notificationRouter } from './routes/notifications.js';
 import { ensureDefaultAdmin } from './services/adminSeed.js';
 import { pingDatabase } from './db/index.js';
 import { errorHandler } from './middlewares/error.js';
@@ -72,6 +74,8 @@ app.use('/api/favorites', favoriteRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/bookings', bookingRouter);
 app.use('/api/payments', paymentRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/notifications', notificationRouter);
 
 app.get('/health', async (_req, res) => {
   try {

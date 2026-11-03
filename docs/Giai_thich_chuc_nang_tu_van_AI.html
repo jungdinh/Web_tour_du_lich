@@ -1,0 +1,1415 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Gi&#7843;i th&#237;ch ch&#7913;c n&#259;ng t&#432; v&#7845;n AI</title>
+  <style>
+    :root {
+      --paper: #f4f1e9;
+      --surface: #fffdf8;
+      --ink: #19201d;
+      --muted: #69716c;
+      --line: #d8d5cb;
+      --accent: #176b53;
+      --accent-soft: #dcebe4;
+      --code: #17211d;
+      --code-ink: #e7f3ec;
+      --mark: #ffe28a;
+      --shadow: 0 16px 46px rgba(35, 43, 39, .09);
+      --sidebar: 310px;
+      --header: 64px;
+    }
+    html[data-theme="dark"] {
+      --paper: #121714;
+      --surface: #19201c;
+      --ink: #edf2ee;
+      --muted: #a9b4ad;
+      --line: #323b36;
+      --accent: #77d5ae;
+      --accent-soft: #203d31;
+      --code: #0c100e;
+      --code-ink: #e4f4eb;
+      --mark: #775d12;
+      --shadow: 0 20px 56px rgba(0, 0, 0, .3);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 3px; }
+    .progress {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 100;
+      height: 3px;
+      background: transparent;
+    }
+    .progress span { display: block; width: 0; height: 100%; background: var(--accent); }
+    .topbar {
+      position: fixed;
+      inset: 3px 0 auto 0;
+      z-index: 90;
+      height: var(--header);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--paper) 92%, transparent);
+      backdrop-filter: blur(14px);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+    .brand-copy { min-width: 0; }
+    .brand-title { margin: 0; font-size: 14px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brand-subtitle { margin: 1px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .icon-btn, .menu-btn, .print-btn {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .icon-btn, .menu-btn { width: 40px; padding: 0; }
+    .print-btn { padding: 0 13px; font-size: 13px; font-weight: 650; }
+    .icon-btn:hover, .menu-btn:hover, .print-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .icon-btn:active, .menu-btn:active, .print-btn:active { transform: translateY(1px); }
+    .menu-btn { display: none; }
+    .layout { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; padding-top: calc(var(--header) + 3px); }
+    .sidebar {
+      position: fixed;
+      top: calc(var(--header) + 3px);
+      bottom: 0;
+      left: 0;
+      width: var(--sidebar);
+      padding: 24px 18px 28px 22px;
+      border-right: 1px solid var(--line);
+      background: var(--paper);
+      overflow: auto;
+      scrollbar-width: thin;
+    }
+    .search-wrap { position: relative; margin-bottom: 22px; }
+    .search-wrap svg { position: absolute; left: 12px; top: 12px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+    .search {
+      width: 100%;
+      height: 41px;
+      padding: 0 38px 0 37px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink);
+      background: var(--surface);
+    }
+    .search::placeholder { color: var(--muted); }
+    .clear-search {
+      position: absolute;
+      right: 6px;
+      top: 6px;
+      display: none;
+      width: 29px;
+      height: 29px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .clear-search:hover { background: var(--accent-soft); }
+    .search-meta { min-height: 20px; margin: -13px 2px 15px; color: var(--muted); font-size: 12px; }
+    .toc-label { margin: 0 8px 10px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .toc { display: grid; gap: 2px; }
+    .toc a {
+      display: block;
+      padding: 7px 9px;
+      border-left: 2px solid transparent;
+      border-radius: 0 7px 7px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      text-decoration: none;
+      transition: color .16s ease, background .16s ease, border-color .16s ease;
+    }
+    .toc a.level-3 { padding-left: 22px; font-size: 12px; }
+    .toc a:hover { color: var(--ink); background: color-mix(in srgb, var(--surface) 72%, transparent); }
+    .toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+    .main { grid-column: 2; min-width: 0; padding: 46px clamp(26px, 6vw, 90px) 90px; }
+    .reader { width: min(900px, 100%); margin: 0 auto; }
+    .document-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-bottom: 34px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .document-meta span { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-content h1, .doc-content h2, .doc-content h3 { font-family: Georgia, "Times New Roman", serif; color: var(--ink); line-height: 1.18; text-wrap: balance; }
+    .doc-content h1 { margin: 0 0 26px; font-size: clamp(36px, 5vw, 62px); letter-spacing: -.035em; }
+    .doc-content h2 { margin: 76px 0 22px; padding-top: 14px; font-size: clamp(27px, 3vw, 38px); letter-spacing: -.025em; }
+    .doc-content h3 { margin: 42px 0 15px; font-size: clamp(20px, 2vw, 25px); letter-spacing: -.015em; }
+    .doc-content p { margin: 0 0 18px; font-size: 17px; }
+    .doc-content > p:first-of-type { color: var(--muted); font-size: 18px; }
+    .doc-content ul, .doc-content ol { margin: 0 0 22px; padding-left: 26px; }
+    .doc-content li { margin: 7px 0; padding-left: 4px; }
+    .doc-content strong { font-weight: 760; }
+    .doc-content a { color: var(--accent); text-underline-offset: 3px; }
+    .doc-content hr { margin: 60px 0; border: 0; border-top: 1px solid var(--line); }
+    .doc-content blockquote {
+      margin: 28px 0;
+      padding: 18px 22px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      font-size: 17px;
+    }
+    .doc-content blockquote p:last-child { margin-bottom: 0; }
+    .doc-content code:not(pre code) { padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-family: Consolas, monospace; font-size: .88em; }
+    .code-wrap { position: relative; margin: 24px 0 28px; }
+    .doc-content pre { margin: 0; padding: 21px 20px; border-radius: 10px; overflow: auto; color: var(--code-ink); background: var(--code); box-shadow: var(--shadow); }
+    .doc-content pre code { font: 14px/1.65 Consolas, "Courier New", monospace; white-space: pre; }
+    .copy-code {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 5px 9px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 6px;
+      color: #dce9e1;
+      background: rgba(255,255,255,.08);
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .copy-code:hover { background: rgba(255,255,255,.16); }
+    mark { padding: 0 2px; color: inherit; background: var(--mark); border-radius: 2px; }
+    .empty-search { display: none; margin: 40px 0; padding: 24px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
+    .to-top {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 60;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .to-top.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .mobile-overlay { display: none; }
+    @media (max-width: 900px) {
+      :root { --header: 58px; }
+      .topbar { padding: 0 14px; }
+      .brand-subtitle, .print-btn span { display: none; }
+      .menu-btn { display: inline-grid; place-items: center; }
+      .layout { display: block; }
+      .sidebar { z-index: 85; width: min(88vw, 340px); transform: translateX(-102%); transition: transform .22s ease; box-shadow: var(--shadow); }
+      body.sidebar-open .sidebar { transform: translateX(0); }
+      .mobile-overlay { position: fixed; inset: calc(var(--header) + 3px) 0 0; z-index: 80; background: rgba(0,0,0,.42); }
+      body.sidebar-open .mobile-overlay { display: block; }
+      .main { padding: 34px 20px 76px; }
+      .doc-content h1 { font-size: 38px; }
+      .doc-content h2 { margin-top: 58px; }
+      .to-top { right: 16px; bottom: 16px; }
+    }
+    @media (max-width: 520px) {
+      .brand-title { max-width: 180px; }
+      .top-actions { gap: 5px; }
+      .main { padding-inline: 16px; }
+      .doc-content p { font-size: 16px; }
+      .doc-content pre { margin-inline: -6px; padding: 18px 15px; border-radius: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+    @media print {
+      :root { --paper: #fff; --surface: #fff; --ink: #111; --muted: #555; --line: #ccc; }
+      .topbar, .sidebar, .progress, .to-top, .mobile-overlay, .copy-code { display: none !important; }
+      .layout, .main { display: block; padding: 0; }
+      .reader { width: 100%; }
+      .doc-content h2 { break-before: page; margin-top: 28px; }
+      .doc-content pre { box-shadow: none; white-space: pre-wrap; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+  <header class="topbar">
+    <button class="menu-btn" id="menuButton" aria-label="M&#7903; m&#7909;c l&#7909;c" aria-expanded="false">&#9776;</button>
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">AI</div>
+      <div class="brand-copy">
+        <p class="brand-title">T&#224;i li&#7879;u t&#432; v&#7845;n AI</p>
+        <p class="brand-subtitle">Tr&#236;nh &#273;&#7885;c offline</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="print-btn" id="printButton" title="In ho&#7863;c l&#432;u PDF">&#9113; <span>In / PDF</span></button>
+      <button class="icon-btn" id="themeButton" aria-label="&#272;&#7893;i giao di&#7879;n s&#225;ng t&#7889;i" title="&#272;&#7893;i giao di&#7879;n">&#9680;</button>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <input class="search" id="searchInput" type="search" placeholder="T&#236;m trong t&#224;i li&#7879;u..." aria-label="T&#236;m trong t&#224;i li&#7879;u">
+        <button class="clear-search" id="clearSearch" aria-label="X&#243;a t&#7915; kh&#243;a">&#10005;</button>
+      </div>
+      <div class="search-meta" id="searchMeta" aria-live="polite"></div>
+      <p class="toc-label">M&#7909;c l&#7909;c</p>
+      <nav class="toc" id="toc" aria-label="M&#7909;c l&#7909;c t&#224;i li&#7879;u"></nav>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="main">
+      <div class="reader">
+        <div class="document-meta" id="documentMeta"></div>
+        <article class="doc-content" id="content"></article>
+        <div class="empty-search" id="emptySearch">Kh&#244;ng t&#236;m th&#7845;y n&#7897;i dung ph&#249; h&#7907;p.</div>
+      </div>
+    </main>
+  </div>
+  <button class="to-top" id="toTop" aria-label="L&#234;n &#273;&#7847;u trang">&#8593;</button>
+  <textarea id="markdown-source" hidden>
+# GIẢI THÍCH CHỨC NĂNG TƯ VẤN DU LỊCH BẰNG AI
+
+**Ngày cập nhật:** 06/10/2026  
+**Dự án:** Hệ thống tư vấn và gợi ý tour du lịch
+
+## 1. Tổng quan
+
+Chức năng tư vấn AI của dự án được chia thành ba phần:
+
+1. **Giao diện trò chuyện:** nhận câu hỏi, hiển thị câu trả lời và danh sách tour.
+2. **Backend chính:** kiểm tra đăng nhập, quản lý cuộc trò chuyện, lưu lịch sử và chuyển câu hỏi sang dịch vụ AI.
+3. **Dịch vụ AI:** hiểu nhu cầu, tìm tour trong database, sắp xếp tour phù hợp và viết câu trả lời bằng tiếng Việt.
+
+Luồng xử lý:
+
+```text
+Người dùng nhập câu hỏi
+        ↓
+Trang Chat gửi câu hỏi tới backend
+        ↓
+Backend lưu câu hỏi vào database
+        ↓
+Backend gửi câu hỏi và nội dung trước đó sang AI Service
+        ↓
+AI Service hiểu nhu cầu, tìm và sắp xếp tour
+        ↓
+AI Service viết câu trả lời
+        ↓
+Backend lưu câu trả lời
+        ↓
+Trang Chat hiển thị câu trả lời và các thẻ tour
+```
+
+DeepSeek hoặc Gemini không tự tạo danh sách tour. Tour thật luôn được lấy từ database. AI bên ngoài chủ yếu giúp câu trả lời tự nhiên và giống nhân viên tư vấn hơn.
+
+## 2. Giao diện tư vấn AI
+
+### File `web-fe/src/pages/Chat.tsx`
+
+Đây là file chính tạo màn hình trò chuyện với TourAI Assistant. File chịu trách nhiệm:
+
+- Hiển thị màn hình chào mừng và các câu hỏi gợi ý.
+- Nhận nội dung người dùng nhập.
+- Gửi câu hỏi tới backend.
+- Hiển thị trạng thái AI đang xử lý.
+- Hiển thị câu trả lời và danh sách tour.
+- Gửi các câu hỏi tiếp theo về tour vừa được tư vấn.
+- Ghi nhận khi người dùng bấm vào một tour.
+
+Tại `web-fe/src/pages/Chat.tsx:12`, giao diện khai báo các hành trình mẫu như nghỉ dưỡng Phú Quốc, Đà Lạt cho cặp đôi, Sapa săn mây và Đà Nẵng - Hội An cho gia đình. Mỗi thẻ chứa một câu hỏi hoàn chỉnh; khi bấm vào, câu hỏi được gửi giống như người dùng tự nhập.
+
+`QUICK_TOPICS` tại `web-fe/src/pages/Chat.tsx:44` cung cấp các nút hỏi nhanh như tour Phú Quốc, tour Đà Lạt, tour dưới 3 triệu hoặc tour cho gia đình.
+
+Tại `web-fe/src/pages/Chat.tsx:274`, trang Chat giữ:
+
+- `messages`: danh sách tin nhắn đang hiển thị.
+- `input`: nội dung đang nhập.
+- `loading`: AI có đang xử lý hay không.
+- `sessionId`: mã cuộc trò chuyện hiện tại.
+
+### Ghi nhớ cuộc trò chuyện trên trình duyệt
+
+Tại `web-fe/src/pages/Chat.tsx:293`, trang Chat đọc và lưu dữ liệu bằng `sessionStorage`. Dữ liệu được lưu theo tên:
+
+```text
+tourai-chat:&lt;mã người dùng&gt;
+```
+
+Nội dung gồm danh sách tin nhắn và mã cuộc trò chuyện. Khi tải lại trang trong cùng phiên trình duyệt, nội dung chat có thể được phục hồi. Đây chỉ là vùng lưu tạm; lịch sử chính thức vẫn được backend lưu trong database.
+
+### Gửi câu hỏi
+
+Hàm `handleSend()` tại `web-fe/src/pages/Chat.tsx:356` thực hiện:
+
+1. Lấy nội dung người dùng nhập.
+2. Không gửi nếu nội dung rỗng.
+3. Không cho gửi thêm nếu AI đang xử lý câu trước.
+4. Hiển thị ngay tin nhắn của người dùng.
+5. Gọi `chatApi.sendMessage()`.
+6. Chờ backend trả kết quả.
+7. Thêm câu trả lời AI vào màn hình.
+
+Kết quả có thể chứa nội dung trả lời, mã cuộc trò chuyện, danh sách tour, các điểm đến gợi ý và trạng thái đã đủ thông tin hay chưa.
+
+### Hiển thị tour và câu hỏi tiếp theo
+
+`TourCarousel` tại `web-fe/src/pages/Chat.tsx:163` hiển thị tour theo dạng thẻ kéo ngang. Mỗi thẻ có thể chứa ảnh, tên, điểm đến, giá, thời gian và đánh giá.
+
+Khi người dùng bấm vào tour, `handleTourCardClick()` tại `web-fe/src/pages/Chat.tsx:437` gửi hành động đó tới backend để hệ thống học sở thích.
+
+Các nút hỏi tiếp tại `web-fe/src/pages/Chat.tsx:656` cho phép xem lịch trình từng ngày, tìm tour rẻ hơn hoặc hỏi về đặc sản. Những câu này được gửi vào cùng cuộc trò chuyện nên hệ thống có thể dựa trên danh sách tour trước đó để trả lời.
+
+Trang Chat yêu cầu đăng nhập để hệ thống xác định người đang trò chuyện, sở thích và lịch sử thuộc về tài khoản nào.
+
+## 3. File giao tiếp với backend
+
+### File `web-fe/src/api/index.ts`
+
+Phần chat nằm tại `web-fe/src/api/index.ts:242`.
+
+```ts
+chatApi.sendMessage(message, sessionId)
+```
+
+Hàm gửi câu hỏi và mã cuộc trò chuyện tới `POST /api/chat`. Sau khi nhận kết quả, file làm sạch dữ liệu tour để giao diện nhận được cấu trúc thống nhất.
+
+File còn có `chatApi.getHistory(sessionId)` để lấy lịch sử từ backend. Tuy nhiên, trang Chat hiện chủ yếu phục hồi từ `sessionStorage`, chưa tự gọi hàm này khi mở trang.
+
+### File `web-fe/src/types/index.ts`
+
+Cấu trúc tin nhắn tại `web-fe/src/types/index.ts:140` gồm mã tin nhắn, người gửi, nội dung, thời gian, các điểm đến gợi ý, danh sách tour và trạng thái đã đủ thông tin hay chưa.
+
+## 4. Backend quản lý cuộc trò chuyện
+
+### File `web-be/src/routes/chat.ts`
+
+File khai báo:
+
+```text
+POST /api/chat
+GET  /api/chat/history
+```
+
+- `POST /api/chat`: gửi câu hỏi mới.
+- `GET /api/chat/history`: lấy lịch sử trò chuyện.
+
+Cả hai yêu cầu đăng nhập. Đường dẫn được đăng ký tại `web-be/src/index.ts:71`.
+
+### File `web-be/src/controllers/chat.ts`
+
+Đây là cầu nối giữa giao diện và AI Service.
+
+Hàm `chat()` tại `web-be/src/controllers/chat.ts:30` nhận mã người dùng, câu hỏi và mã cuộc trò chuyện. Nếu chưa có cuộc trò chuyện, backend tạo một dòng trong bảng `chat_sessions`.
+
+Backend tạo vùng nhớ tạm tại `web-be/src/controllers/chat.ts:28`, gồm:
+
+- Mã cuộc trò chuyện.
+- Những thông tin đã hiểu từ các câu trước.
+- Các tour vừa gợi ý.
+- Các tin nhắn gần nhất.
+
+Trước khi gọi AI, backend lưu câu hỏi vào bảng `chat_messages` tại `web-be/src/controllers/chat.ts:54`. Backend chỉ giữ tối đa tám tin nhắn gần nhất trong vùng nhớ tạm để AI hiểu nội dung tiếp theo mà không phải đọc lịch sử quá dài.
+
+Backend gọi `POST /ai/chat` với dữ liệu tại `web-be/src/controllers/chat.ts:61`:
+
+- `user_id`: người đang hỏi.
+- `message`: câu hỏi mới.
+- `session_id`: mã cuộc trò chuyện.
+- `current_slots`: các thông tin đã hiểu.
+- `last_recommendations`: các tour vừa gợi ý.
+- `recent_messages`: các tin nhắn gần nhất.
+
+Có thể hiểu `current_slots` là tờ ghi chú nhu cầu của khách:
+
+```json
+{
+  "destination": "Đà Lạt",
+  "duration": 3,
+  "budget_max": 5000000,
+  "companions": ["couple"],
+  "preferences": ["photography", "relax"]
+}
+```
+
+Người dùng không cần cung cấp toàn bộ nhu cầu trong một câu. Backend ghép thông tin mới vào thông tin cũ qua từng lượt chat.
+
+Sau khi AI trả kết quả, backend lưu câu trả lời, cập nhật thông tin đã hiểu, ghi nhớ danh sách tour mới nhất và trả dữ liệu về giao diện.
+
+Hàm `getChatHistory()` tại `web-be/src/controllers/chat.ts:123` đọc lịch sử từ database và chỉ trả dữ liệu thuộc tài khoản đang đăng nhập.
+
+## 5. File điều khiển chính của AI Service
+
+### File `ai-service/app/main.py`
+
+Đây là file kết nối phần hiểu câu hỏi, lấy nhu cầu, tìm tour, sắp xếp tour, viết câu trả lời và database.
+
+Tại `ai-service/app/main.py:54`, hệ thống chọn DeepSeek nếu được cấu hình và có khóa; nếu không thì thử Gemini; nếu cả hai không hoạt động thì dùng câu trả lời dự phòng trong code.
+
+Các đường dẫn AI yêu cầu mã bí mật tại `ai-service/app/main.py:76`. Frontend không gọi trực tiếp AI Service. Luồng đúng là:
+
+```text
+Frontend → Backend → AI Service
+```
+
+### Xử lý một câu hỏi
+
+Đường xử lý chính nằm tại `ai-service/app/main.py:494`.
+
+**Bước 1: Nhận nội dung cũ.** AI Service nhận nhu cầu đã hiểu, danh sách tour vừa gợi ý và các tin nhắn gần nhất. Nhờ vậy nó hiểu các câu như “tour thứ hai có gì hay?” hoặc “có tour nào rẻ hơn?”.
+
+**Bước 2: Xác định mục đích câu hỏi.** Tại `ai-service/app/main.py:505`, hệ thống nhận biết người dùng đang tìm mới, thay đổi yêu cầu, hỏi về tour cũ, so sánh tour, nói cảm ơn hoặc hỏi nội dung không liên quan.
+
+**Bước 3: Lấy nhu cầu.** Tại `ai-service/app/main.py:564`, hệ thống tìm điểm đến, số ngày, ngân sách, người đi cùng, sở thích và mùa muốn đi.
+
+Ví dụ câu “Tôi muốn đi Đà Lạt 3 ngày với người yêu, ngân sách khoảng 5 triệu, thích check-in” có thể được hiểu thành Đà Lạt, 3 ngày, tối đa 5 triệu, đi theo cặp đôi và thích chụp ảnh.
+
+**Bước 4: Hỏi thêm.** Nếu chưa có điểm đến, hệ thống hỏi thêm tại `ai-service/app/main.py:579`. Nếu người dùng chỉ nói thích biển hoặc nghỉ dưỡng, hệ thống có thể gợi ý các điểm đến phù hợp.
+
+**Bước 5: Tạo điều kiện tìm tour.** Hàm `_build_filters()` tại `ai-service/app/main.py:385` tạo điều kiện theo điểm đến, giá và số ngày.
+
+**Bước 6: Nới điều kiện.** Hàm `_recommend_with_relaxation()` tại `ai-service/app/main.py:460` lần lượt thử bỏ số ngày chính xác, bỏ giới hạn ngân sách và mở rộng điểm đến nếu không tìm thấy tour. Hệ thống thông báo rõ khi kết quả đã được nới điều kiện.
+
+**Bước 7: Viết câu trả lời.** Sau khi có danh sách tour, hệ thống gọi `ConversationAgent` tại `ai-service/app/main.py:612` và trả nội dung tư vấn cùng danh sách tour.
+
+## 6. File hiểu câu hỏi và viết câu trả lời
+
+### File `ai-service/app/llm/conversation_agent.py`
+
+File xác định người dùng đang muốn làm gì và viết câu trả lời giống nhân viên tư vấn.
+
+Các trường hợp tại `ai-service/app/llm/conversation_agent.py:11` gồm:
+
+- `new_search`: tìm tour mới.
+- `refine_search`: thay đổi yêu cầu.
+- `acknowledgement`: nói “ok”, “được”, “cảm ơn”.
+- `answer_about_recommendation`: hỏi về tour vừa gợi ý.
+- `compare_recommendations`: so sánh tour.
+- `ask_missing_info`: cần hỏi thêm.
+- `out_of_scope`: câu hỏi ngoài chức năng.
+
+Ví dụ:
+
+- “Tìm tour Đà Lạt 3 ngày” → tìm mới.
+- “Tăng ngân sách lên 7 triệu” → thay đổi yêu cầu.
+- “Tour 1 có phù hợp gia đình không?” → hỏi về kết quả trước.
+
+Tại `ai-service/app/llm/conversation_agent.py:33`, file yêu cầu câu trả lời bằng tiếng Việt, câu ngắn, dễ đọc, không phóng đại, không bịa thông tin và trình bày giá theo tiền Việt Nam.
+
+Khi người dùng hỏi “tour 2 có đáng tiền không?”, `write_context_answer()` chỉ dùng dữ liệu tour thứ hai để trả lời, không tìm danh sách mới.
+
+Nếu DeepSeek hoặc Gemini lỗi, file có cách nhận biết câu hỏi bằng từ khóa tại `ai-service/app/llm/conversation_agent.py:571` và có câu trả lời dự phòng.
+
+## 7. File lấy nhu cầu từ câu nói
+
+### File `ai-service/app/llm/slot_filling.py`
+
+File biến câu nói tự nhiên thành thông tin cụ thể để tìm tour.
+
+Ví dụ:
+
+```text
+Tôi muốn đi biển 4 ngày cùng gia đình, chi phí dưới 8 triệu.
+```
+
+Được tách thành:
+
+```text
+Thời gian: 4 ngày
+Ngân sách tối đa: 8 triệu
+Người đi cùng: gia đình
+Sở thích: biển
+```
+
+Tại `ai-service/app/llm/slot_filling.py:80`, file tìm điểm đến, thời gian, ngân sách, người đi cùng, sở thích và mùa du lịch.
+
+File nhận cả thông tin cũ và câu mới nên có thể ghép nhu cầu qua nhiều lượt chat.
+
+Hàm `is_complete()` tại `ai-service/app/llm/slot_filling.py:307` hiện chỉ kiểm tra đã có điểm đến hay chưa. Có điểm đến là hệ thống có thể bắt đầu gợi ý tour dù chưa biết số ngày hoặc ngân sách.
+
+## 8. File tìm và sắp xếp tour
+
+### File `ai-service/app/engine/engine_db.py`
+
+File trực tiếp đọc database và lựa chọn tour:
+
+1. Lấy sở thích người dùng.
+2. Lọc tour theo điểm đến, giá và số ngày.
+3. So sánh sở thích với đặc điểm từng tour.
+4. Sắp xếp tour phù hợp lên trước.
+5. Trả về các tour tốt nhất.
+
+Tại `ai-service/app/engine/engine_db.py:72`, hệ thống đọc sở thích từ bảng `user_preferences`.
+
+Mỗi tour có các đặc điểm trong bảng `tour_tags`, ví dụ biển, gia đình, nghỉ dưỡng, ẩm thực, lịch sử hoặc check-in. Nếu người dùng thích biển và nghỉ dưỡng, tour Phú Quốc có khả năng được xếp cao hơn tour leo núi.
+
+Tại `ai-service/app/engine/engine_db.py:88`, hệ thống lọc theo điểm đến hoặc tên tour, giá và số ngày.
+
+Nếu tour có ít đánh giá, phần xử lý tại `ai-service/app/engine/engine_db.py:120` đọc mô tả để đoán thêm đặc điểm. Nhờ đó tour mới vẫn có cơ hội được gợi ý.
+
+Người dùng chưa có sở thích được xử lý tại `ai-service/app/engine/engine_db.py:362`. Hệ thống tạm đoán sở thích từ câu hỏi; nếu chưa đủ, nó lấy các tour phổ biến và được đánh giá tốt nhưng vẫn giữ điều kiện tìm kiếm.
+
+## 9. Mô hình sắp xếp tour
+
+### File `ai-service/app/engine/ml_ranker.py`
+
+File tải mô hình từ:
+
+```text
+ai-service/app/models/tour_recommender_model.pkl
+```
+
+Mô hình xem xét mức hợp sở thích, điểm đến, ngân sách, số ngày, giá, thời lượng, điểm đánh giá và số lượt đánh giá.
+
+Kết quả cuối kết hợp 70% điểm từ mô hình đã huấn luyện và 30% mức giống nhau giữa sở thích người dùng với đặc điểm tour.
+
+Nếu file mô hình bị thiếu hoặc không đọc được, hệ thống vẫn hoạt động bằng cách so sánh sở thích và đặc điểm tour theo cách thông thường.
+
+## 10. Vai trò của DeepSeek và Gemini
+
+### File `ai-service/app/llm/deepseek.py`
+
+File gửi hướng dẫn và dữ liệu tour tới DeepSeek, nhận câu trả lời tiếng Việt, giới hạn thời gian chờ, phát hiện lỗi giới hạn sử dụng và chuyển sang cách trả lời dự phòng khi cần.
+
+DeepSeek không tự đọc database. Dữ liệu tour phải được hệ thống chuẩn bị trước.
+
+### File `ai-service/app/llm/gemini.py`
+
+File có vai trò tương tự nhưng dùng Gemini. Cấu hình lựa chọn nằm trong `ai-service/app/config.py`.
+
+### Cách hoạt động thực tế hiện tại
+
+Trong `ai-service/app/main.py:51`, phần lấy điểm đến, số ngày, ngân sách và sở thích được khởi tạo mà không truyền DeepSeek hoặc Gemini vào.
+
+Trong `ai-service/app/main.py:60` và `ai-service/app/main.py:69`, DeepSeek hoặc Gemini chủ yếu được dùng để viết câu trả lời.
+
+Vì vậy:
+
+- Việc hiểu điểm đến, số ngày và ngân sách chủ yếu dựa trên từ khóa và quy tắc trong code.
+- DeepSeek hoặc Gemini chủ yếu làm câu trả lời tự nhiên hơn.
+- Nếu AI bên ngoài lỗi, hệ thống vẫn có thể tìm tour và trả lời cơ bản.
+
+## 11. Hệ thống học sở thích
+
+### File `web-be/src/controllers/actions.ts`
+
+Backend lưu các hành động vào bảng `user_actions`:
+
+- `click`: bấm vào tour.
+- `view`: xem tour.
+- `save`: lưu tour yêu thích.
+- `search`: tìm kiếm.
+
+Sau khi lưu, backend gửi thông tin sang AI Service để cập nhật sở thích.
+
+Tại `ai-service/app/engine/engine_db.py:411`, mức ảnh hưởng là:
+
+- Lưu tour: `0.7`.
+- Bấm vào tour: `0.35`.
+- Tìm kiếm: `0.18`.
+- Chỉ xem: `0`.
+
+Nếu người dùng thường lưu tour biển, mức quan tâm đến biển và nghỉ dưỡng tăng. Các lần tư vấn sau, tour biển có khả năng được xếp cao hơn.
+
+## 12. Các bảng database liên quan
+
+Các bảng được mô tả trong `ai-service/app/models/database.py`:
+
+- `tours`: lưu tên, điểm đến, giá, số ngày, mô tả, đánh giá, ảnh và lịch trình.
+- `tour_tags`: lưu đặc điểm tour như biển, gia đình, nghỉ dưỡng hoặc ẩm thực.
+- `user_preferences`: lưu sở thích đã học được của từng người dùng.
+- `user_actions`: lưu các hành động bấm, xem, lưu và tìm kiếm.
+- `chat_sessions`: lưu từng cuộc trò chuyện.
+- `chat_messages`: lưu người gửi, nội dung và thời gian của từng tin nhắn.
+
+## 13. Ví dụ toàn bộ quá trình
+
+Người dùng nhập:
+
+```text
+Tôi muốn đi Đà Lạt với người yêu.
+```
+
+Hệ thống thực hiện:
+
+1. `Chat.tsx` hiển thị câu hỏi.
+2. `chatApi` gửi câu hỏi đến backend.
+3. Backend tạo phiên và lưu câu hỏi.
+4. Backend gửi câu hỏi cùng nội dung cũ sang AI Service.
+5. `conversation_agent.py` nhận biết đây là yêu cầu tìm tour.
+6. `slot_filling.py` lấy điểm đến Đà Lạt và người đi cùng là cặp đôi.
+7. `engine_db.py` lấy các tour Đà Lạt.
+8. Hệ thống đọc sở thích trước đây của người dùng.
+9. `ml_ranker.py` sắp xếp các tour.
+10. `conversation_agent.py` viết câu trả lời.
+11. Backend lưu câu trả lời.
+12. `Chat.tsx` hiển thị lời tư vấn và các thẻ tour.
+
+Nếu người dùng hỏi “tour thứ nhất có gì nổi bật?”, hệ thống dùng tour thứ nhất trong danh sách trước để trả lời, không tìm danh sách mới.
+
+Nếu người dùng hỏi “có tour nào rẻ hơn không?”, hệ thống hiểu đây là thay đổi yêu cầu, cập nhật điều kiện giá rồi tìm lại tour.
+
+## 14. Các điểm cần lưu ý trong phiên bản hiện tại
+
+### Cuộc trò chuyện mới chưa tách hoàn toàn ở backend
+
+Nút “Cuộc trò chuyện mới” tại `web-fe/src/pages/Chat.tsx:340` xóa dữ liệu trên giao diện và đặt `sessionId` về rỗng. Tuy nhiên, backend vẫn giữ vùng nhớ tạm cho người dùng tại `web-be/src/controllers/chat.ts:28`. Giao diện có thể trông như chat mới nhưng backend vẫn còn nhớ nội dung cũ.
+
+### Backend khởi động lại sẽ mất phần ghi nhớ tạm
+
+Tin nhắn vẫn còn trong database, nhưng điều kiện đã hiểu, danh sách tour vừa gợi ý và tám tin nhắn gần nhất đang nằm trong bộ nhớ backend. Khi backend khởi động lại, phần này bị mất và chưa tự phục hồi từ database.
+
+### Giao diện chưa tự tải lịch sử từ database
+
+Backend đã có chức năng lấy lịch sử và frontend có `chatApi.getHistory()`, nhưng `Chat.tsx` hiện chủ yếu phục hồi từ `sessionStorage`. Người dùng đăng nhập trên máy hoặc trình duyệt khác chưa tự thấy lịch sử chat cũ.
+
+### Hệ thống chỉ bắt buộc điểm đến
+
+Mặc dù hệ thống có thể đọc số ngày và ngân sách, `is_complete()` hiện chỉ yêu cầu điểm đến. Câu “tìm tour Đà Lạt” đã có thể làm hệ thống gợi ý dù chưa biết số ngày và ngân sách.
+
+### Sở thích trong câu chat chưa được dùng đầy đủ
+
+Hệ thống có thể nhận biết sở thích như biển, nghỉ dưỡng, ẩm thực hoặc check-in. Tuy nhiên, phần tạo điều kiện tại `ai-service/app/main.py:385` tập trung chủ yếu vào điểm đến, giá và số ngày.
+
+Sở thích được dùng trong việc gợi ý điểm đến và hồ sơ sở thích đã lưu, nhưng chưa được truyền đầy đủ vào mọi lần sắp xếp tour trực tiếp từ nội dung chat.
+
+## 15. Kết luận
+
+Chức năng tư vấn AI là sự kết hợp của ba nhóm công việc:
+
+1. **Trò chuyện:** ghi nhớ câu trước và xác định người dùng đang tìm mới hay hỏi tiếp.
+2. **Chọn tour:** lọc tour từ database và sắp xếp tour phù hợp lên trước.
+3. **Viết câu trả lời:** DeepSeek hoặc Gemini biến dữ liệu thành lời tư vấn tiếng Việt tự nhiên.
+
+Điểm tốt của thiết kế này là AI bên ngoài không tự bịa danh sách tour. Tour vẫn được lấy từ database. Nếu AI bên ngoài gặp lỗi, hệ thống vẫn có thể tiếp tục hoạt động bằng các quy tắc, dữ liệu và câu trả lời dự phòng có sẵn.
+
+---
+
+## 16. AI được xây dựng và quyết định kết quả như thế nào?
+
+Nếu được hỏi AI của dự án được xây dựng như thế nào, cần giải thích rằng đây không phải là một AI duy nhất tự làm tất cả công việc. Hệ thống được kết hợp từ nhiều phần:
+
+1. Phần đọc hiểu câu hỏi của người dùng.
+2. Phần lọc các tour không phù hợp.
+3. Phần học máy dùng để chấm điểm và xếp hạng tour.
+4. DeepSeek hoặc Gemini dùng để viết kết quả thành lời tư vấn tự nhiên.
+
+Có thể tóm tắt:
+
+```text
+Câu hỏi người dùng
+        ↓
+Lấy điểm đến, ngân sách, số ngày và sở thích
+        ↓
+Lọc tour trong database
+        ↓
+Đọc sở thích đã học được của người dùng
+        ↓
+Random Forest chấm điểm các tour
+        ↓
+Sắp xếp tour theo điểm từ cao xuống thấp
+        ↓
+DeepSeek hoặc Gemini viết lời tư vấn
+```
+
+### 16.1. File tạo dữ liệu huấn luyện
+
+#### File `scripts/generate_synthetic_tour_dataset.py`
+
+Đây là file tạo bộ dữ liệu ban đầu để huấn luyện mô hình gợi ý tour.
+
+File tạo ra:
+
+- Người dùng mô phỏng.
+- Tour mô phỏng.
+- Sở thích của từng người dùng.
+- Các hành động xem, bấm và lưu tour.
+- Các cặp người dùng - tour.
+- Kết quả người dùng có khả năng thích tour hay không.
+
+Phần quan trọng nằm tại `scripts/generate_synthetic_tour_dataset.py:230`.
+
+File tính mức phù hợp của một người dùng với một tour theo công thức:
+
+```text
+42%: Sở thích người dùng có giống đặc điểm tour không
+18%: Tour có đúng điểm đến yêu thích không
+16%: Tour có nằm trong ngân sách không
+14%: Số ngày có phù hợp không
+10%: Điểm đánh giá của tour
+```
+
+Công thức trong code:
+
+```python
+0.42 * tag_score
++ 0.18 * destination_score
++ 0.16 * price_score
++ 0.14 * duration_score
++ 0.10 * rating_score
+```
+
+Sau đó file thêm một mức thay đổi ngẫu nhiên để dữ liệu không hoàn toàn giống nhau.
+
+Nếu kết quả từ `0.58` trở lên, cặp người dùng - tour được đánh dấu:
+
+```text
+label = 1
+```
+
+Nghĩa là người dùng có khả năng thích hoặc có tương tác tích cực với tour.
+
+Nếu nhỏ hơn `0.58`:
+
+```text
+label = 0
+```
+
+Nghĩa là tour chưa đủ phù hợp với người dùng đó.
+
+### 16.2. Dữ liệu dùng để huấn luyện
+
+#### File `datasets/synthetic_tour_recommendation/training_interactions.csv`
+
+Đây là file dữ liệu chính dùng để huấn luyện mô hình. Phiên bản hiện tại có khoảng 8.400 cặp người dùng - tour.
+
+Mỗi dòng chứa:
+
+- `tag_similarity`: sở thích người dùng giống đặc điểm tour đến mức nào.
+- `destination_match`: tour có đúng điểm đến không.
+- `price_match`: giá tour có nằm trong ngân sách không.
+- `duration_match`: số ngày có khớp không.
+- `price`: giá tour.
+- `duration`: số ngày của tour.
+- `avg_rating`: điểm đánh giá.
+- `review_count`: số lượt đánh giá.
+- `budget_max`: ngân sách tối đa.
+- `preferred_duration`: số ngày mong muốn.
+- `label`: người dùng có khả năng thích tour hay không.
+
+Ví dụ:
+
+```text
+Người dùng thích thành phố, ẩm thực và chụp ảnh.
+Tour đúng ngân sách, đúng số ngày và được đánh giá tốt.
+→ label = 1
+```
+
+Mô hình học từ nhiều ví dụ như vậy để nhận biết các trường hợp tương tự.
+
+### 16.3. File huấn luyện mô hình
+
+#### File `notebooks/tour_recommender_training_colab.ipynb`
+
+Đây là notebook dùng để huấn luyện mô hình trên Google Colab.
+
+Notebook thực hiện:
+
+1. Đọc `training_interactions.csv`.
+2. Chọn các thông tin dùng để học.
+3. Chia 80% dữ liệu để huấn luyện và 20% để kiểm tra.
+4. Tạo mô hình Random Forest.
+5. Cho mô hình học từ dữ liệu.
+6. Kiểm tra khả năng dự đoán.
+7. Lưu mô hình thành file `.pkl`.
+
+Mô hình được cấu hình:
+
+```python
+RandomForestClassifier(
+    n_estimators=300,
+    max_depth=10,
+    min_samples_leaf=4,
+    random_state=42,
+    class_weight='balanced',
+    n_jobs=-1,
+)
+```
+
+Có thể giải thích đơn giản rằng mô hình tạo ra 300 cách đánh giá nhỏ. Mỗi cách xem xét giá, số ngày, điểm đến, đánh giá và sở thích. Kết quả của các cách đánh giá được tổng hợp để tính khả năng người dùng thích tour.
+
+Mô hình sau khi học được lưu thành:
+
+```text
+tour_recommender_model.pkl
+```
+
+### 16.4. File mô hình đã học
+
+#### File `ai-service/app/models/tour_recommender_model.pkl`
+
+Đây là mô hình Random Forest đã được huấn luyện xong. File không chứa code thông thường mà chứa những gì mô hình đã học được từ dữ liệu.
+
+Khi hệ thống chạy thật, nó không huấn luyện lại mỗi khi người dùng hỏi. Hệ thống chỉ tải file này lên và dùng nó để chấm điểm tour.
+
+File được tải tại `ai-service/app/engine/ml_ranker.py:18`.
+
+Dự án còn có:
+
+```text
+ai-service/app/models/tour_recommender_xgb.pkl
+```
+
+Đây là mô hình XGBoost thử nghiệm. Tuy nhiên, code đang chạy mặc định sử dụng `tour_recommender_model.pkl`, tức mô hình Random Forest.
+
+### 16.5. File quyết định người dùng đang muốn gì
+
+#### File `ai-service/app/llm/conversation_agent.py`
+
+File xác định mục đích câu hỏi:
+
+- Tìm tour mới.
+- Thay đổi yêu cầu.
+- Hỏi thêm về tour trước.
+- So sánh các tour.
+- Chỉ nói “ok” hoặc “cảm ơn”.
+- Cần hỏi thêm thông tin.
+- Câu hỏi ngoài chức năng.
+
+Ví dụ:
+
+```text
+Tìm tour Đà Lạt 3 ngày
+```
+
+Được hiểu là tìm mới.
+
+```text
+Có tour nào rẻ hơn không?
+```
+
+Được hiểu là thay đổi yêu cầu hiện tại.
+
+```text
+Tour 2 có phù hợp với gia đình không?
+```
+
+Được hiểu là hỏi về danh sách tour trước đó.
+
+Phần nhận biết dự phòng nằm tại `ai-service/app/llm/conversation_agent.py:571`.
+
+#### File `ai-service/app/llm/slot_filling.py`
+
+File lấy các thông tin cụ thể từ câu hỏi.
+
+Ví dụ:
+
+```text
+Tôi muốn đi Đà Lạt 3 ngày với người yêu,
+ngân sách dưới 5 triệu, thích check-in.
+```
+
+Được tách thành:
+
+```text
+Điểm đến: Đà Lạt
+Số ngày: 3
+Ngân sách tối đa: 5.000.000 đồng
+Người đi cùng: cặp đôi
+Sở thích: chụp ảnh
+```
+
+Phần lấy thông tin nằm tại `ai-service/app/llm/slot_filling.py:60`.
+
+Theo cách khởi tạo hiện tại, phần lấy điểm đến, số ngày và ngân sách chủ yếu dựa trên danh sách từ khóa và các quy tắc trong code. DeepSeek hoặc Gemini chưa trực tiếp quyết định toàn bộ phần này.
+
+### 16.6. File lọc các tour được phép tham gia xếp hạng
+
+#### File `ai-service/app/main.py`
+
+Sau khi lấy được nhu cầu, hàm `_build_filters()` tại `ai-service/app/main.py:385` chuyển chúng thành điều kiện tìm kiếm.
+
+Ví dụ:
+
+```json
+{
+  "destination": "Đà Lạt",
+  "max_price": 5000000,
+  "duration": 3
+}
+```
+
+Những tour không vượt qua bước lọc sẽ không được mô hình Random Forest chấm điểm.
+
+Ví dụ, người dùng yêu cầu tour Đà Lạt dưới 5 triệu:
+
+- Tour Phú Quốc bị loại vì sai điểm đến.
+- Tour Đà Lạt 8 triệu bị loại vì vượt ngân sách.
+- Chỉ các tour phù hợp điều kiện mới được đưa sang bước xếp hạng.
+
+Vì vậy, thứ tự xử lý là:
+
+```text
+Lọc tour trước
+→ Sau đó mới dùng mô hình để xếp hạng
+```
+
+### 16.7. File trực tiếp lựa chọn tour
+
+#### File `ai-service/app/engine/engine_db.py`
+
+Đây là một trong những file quan trọng nhất quyết định kết quả.
+
+File thực hiện:
+
+1. Đọc sở thích của người dùng.
+2. Đọc đặc điểm của tour.
+3. Lọc tour theo điều kiện.
+4. Tính mức giống nhau giữa người dùng và tour.
+5. Gửi tour sang mô hình Random Forest.
+6. Trả danh sách đã được sắp xếp.
+
+Hàm `get_user_preferences()` tại `ai-service/app/engine/engine_db.py:72` đọc bảng `user_preferences`.
+
+Ví dụ:
+
+```text
+Biển: 0.9
+Nghỉ dưỡng: 0.8
+Ẩm thực: 0.7
+Mạo hiểm: 0.2
+```
+
+Hàm `get_tour_tags()` tại `ai-service/app/engine/engine_db.py:80` đọc đặc điểm của tour từ bảng `tour_tags`.
+
+Ví dụ tour Phú Quốc:
+
+```text
+Biển: 0.95
+Nghỉ dưỡng: 0.85
+Ẩm thực: 0.7
+Sang trọng: 0.65
+```
+
+Phần tính mức giống nhau nằm tại `ai-service/app/engine/engine_db.py:269`.
+
+Có thể giải thích đơn giản:
+
+&gt; Hệ thống đo xem sở thích của người dùng và đặc điểm của tour giống nhau đến mức nào. Hai bên càng giống nhau thì tour càng có điểm cao.
+
+### 16.8. Random Forest chấm điểm tour
+
+#### File `ai-service/app/engine/ml_ranker.py`
+
+File tải mô hình đã huấn luyện và dùng nó để chấm điểm các tour.
+
+Mỗi tour được chuyển thành các thông tin tại `ai-service/app/engine/ml_ranker.py:89`:
+
+- Mức hợp sở thích.
+- Có đúng điểm đến không.
+- Có đúng ngân sách không.
+- Có đúng số ngày không.
+- Giá tour.
+- Số ngày.
+- Điểm đánh giá.
+- Số lượt đánh giá.
+- Ngân sách người dùng.
+- Số ngày người dùng mong muốn.
+
+Mô hình trả về khả năng người dùng thích từng tour, ví dụ:
+
+```text
+Tour A: 0.86
+Tour B: 0.72
+Tour C: 0.58
+```
+
+Tour A có khả năng được xếp đầu.
+
+Điểm cuối được tính tại `ai-service/app/engine/ml_ranker.py:146`:
+
+```python
+combined_score = 0.7 * ml_score + 0.3 * similarity_score
+```
+
+Nghĩa là:
+
+```text
+70%: Kết quả từ mô hình Random Forest
+30%: Mức giống nhau giữa sở thích người dùng và đặc điểm tour
+```
+
+Sau đó hệ thống sắp xếp điểm từ cao xuống thấp tại `ai-service/app/engine/ml_ranker.py:153`.
+
+### 16.9. Quy trình quyết định kết quả hoàn chỉnh
+
+Giả sử người dùng hỏi:
+
+```text
+Tìm tour Đà Lạt 3 ngày dưới 5 triệu cho cặp đôi,
+ưu tiên nhiều điểm check-in.
+```
+
+Hệ thống xử lý:
+
+1. `conversation_agent.py` xác định đây là yêu cầu tìm tour mới.
+2. `slot_filling.py` lấy điểm đến, số ngày, ngân sách, người đi cùng và sở thích.
+3. `main.py` tạo điều kiện lọc Đà Lạt, 3 ngày, dưới 5 triệu.
+4. `engine_db.py` lấy các tour vượt qua điều kiện.
+5. `engine_db.py` đọc sở thích đã học được của người dùng.
+6. Hệ thống tính mức giống nhau giữa sở thích và từng tour.
+7. `ml_ranker.py` gửi thông tin từng tour vào `tour_recommender_model.pkl`.
+8. Random Forest trả khả năng người dùng thích từng tour.
+9. Hệ thống tính điểm cuối theo tỷ lệ 70% và 30%.
+10. Tour có điểm cao nhất được đưa lên đầu.
+11. `conversation_agent.py` dùng DeepSeek hoặc Gemini để viết lời tư vấn.
+
+### 16.10. DeepSeek hoặc Gemini có quyết định tour không?
+
+Câu trả lời chính xác là:
+
+&gt; DeepSeek hoặc Gemini không phải thành phần chính quyết định tour đứng đầu. Chúng chủ yếu viết câu trả lời dựa trên kết quả đã được hệ thống lọc và xếp hạng.
+
+Các file liên quan:
+
+- `ai-service/app/llm/deepseek.py`
+- `ai-service/app/llm/gemini.py`
+- `ai-service/app/llm/conversation_agent.py`
+
+Nếu DeepSeek hoặc Gemini bị lỗi, hệ thống vẫn có thể chọn tour. Phần câu trả lời chỉ trở nên đơn giản hơn vì hệ thống phải dùng nội dung dự phòng trong code.
+
+### 16.11. Hệ thống học sở thích người dùng
+
+File `web-be/src/controllers/actions.ts` ghi nhận các hành động:
+
+- Bấm vào tour.
+- Xem tour.
+- Lưu tour.
+- Tìm kiếm.
+
+Hàm `update_user_preferences()` tại `ai-service/app/engine/engine_db.py:404` cập nhật sở thích với mức ảnh hưởng:
+
+```text
+Lưu tour: 0.70
+Bấm tour: 0.35
+Tìm kiếm: 0.18
+Chỉ xem: 0
+```
+
+Nếu người dùng lưu một tour có đặc điểm biển, nghỉ dưỡng và ẩm thực, hệ thống tăng mức quan tâm đối với các đặc điểm đó. Những lần tư vấn sau, các tour tương tự có khả năng được xếp cao hơn.
+
+### 16.12. Người dùng mới được tư vấn như thế nào?
+
+Nếu người dùng chưa có lịch sử, bảng `user_preferences` chưa có dữ liệu.
+
+Phần xử lý nằm tại `ai-service/app/engine/engine_db.py:362`.
+
+Hệ thống:
+
+1. Dùng câu hỏi hiện tại để tạm đoán sở thích.
+2. Dùng điểm đến để liên kết với một số đặc điểm thường gặp.
+3. Dùng mô hình để chấm điểm nếu có đủ thông tin.
+4. Nếu vẫn chưa đủ, lấy các tour phổ biến và được đánh giá tốt.
+
+Ví dụ, Đà Lạt được tạm liên kết với thiên nhiên, chụp ảnh, lãng mạn, nghỉ dưỡng và núi.
+
+### 16.13. Dữ liệu huấn luyện hiện tại
+
+Mô hình hiện tại được huấn luyện chủ yếu từ dữ liệu mô phỏng trong:
+
+```text
+datasets/synthetic_tour_recommendation/
+```
+
+Bộ dữ liệu gồm khoảng:
+
+- 240 tour mô phỏng.
+- 120 người dùng mô phỏng.
+- 8.400 cặp người dùng - tour để huấn luyện.
+- Các hành động, sở thích và đánh giá mô phỏng.
+
+Dữ liệu này phù hợp để:
+
+- Chứng minh quy trình xây dựng hệ thống gợi ý.
+- Kiểm thử cách xếp hạng.
+- Làm mô hình demo cho đồ án.
+- Chứng minh hệ thống có thể học từ dữ liệu.
+
+Tuy nhiên, chưa thể khẳng định mô hình phản ánh hoàn toàn hành vi khách hàng thật.
+
+Khi có nhiều dữ liệu thật, hướng phát triển là:
+
+1. Thu thập hành động người dùng thật.
+2. Dùng dữ liệu bấm, lưu, đặt tour và đánh giá thật.
+3. Tạo lại dữ liệu huấn luyện.
+4. Huấn luyện lại Random Forest.
+5. So sánh mô hình cũ và mới.
+6. Thay file `tour_recommender_model.pkl`.
+
+### 16.14. Các file quan trọng theo thứ tự
+
+#### Nhóm xây dựng mô hình
+
+1. `scripts/generate_synthetic_tour_dataset.py`: tạo dữ liệu và cách đánh dấu tour phù hợp.
+2. `datasets/synthetic_tour_recommendation/training_interactions.csv`: dữ liệu mô hình học.
+3. `notebooks/tour_recommender_training_colab.ipynb`: huấn luyện Random Forest.
+4. `ai-service/app/models/tour_recommender_model.pkl`: mô hình đã học xong.
+
+#### Nhóm quyết định khi người dùng hỏi
+
+1. `ai-service/app/llm/conversation_agent.py`: xác định người dùng đang muốn làm gì.
+2. `ai-service/app/llm/slot_filling.py`: lấy điểm đến, ngân sách, số ngày và sở thích.
+3. `ai-service/app/main.py`: điều khiển quá trình và tạo điều kiện lọc.
+4. `ai-service/app/engine/engine_db.py`: lấy tour, đọc sở thích và chuẩn bị danh sách.
+5. `ai-service/app/engine/ml_ranker.py`: dùng Random Forest để chấm điểm và xếp hạng.
+6. `ai-service/app/models/tour_recommender_model.pkl`: chứa những gì mô hình đã học.
+7. `ai-service/app/llm/deepseek.py` hoặc `gemini.py`: viết kết quả thành lời tư vấn tự nhiên.
+
+### 16.15. Câu trả lời mẫu khi bảo vệ
+
+Nếu được hỏi “AI của em được xây dựng và quyết định kết quả như thế nào?”, có thể trả lời:
+
+&gt; Hệ thống AI tư vấn của em được xây dựng theo mô hình kết hợp. Đầu tiên, hệ thống phân tích câu hỏi để lấy điểm đến, ngân sách, số ngày và sở thích. Sau đó hệ thống lọc các tour trong database theo các điều kiện bắt buộc. Các tour còn lại được so sánh với hồ sơ sở thích của người dùng và được mô hình Random Forest chấm điểm. Điểm cuối gồm 70% kết quả Random Forest và 30% mức tương đồng giữa sở thích người dùng với đặc điểm tour. Tour có điểm cao nhất được đưa lên đầu. Cuối cùng, DeepSeek hoặc Gemini nhận dữ liệu của tour đã chọn để viết thành lời tư vấn tự nhiên. Vì vậy, DeepSeek hoặc Gemini không tự quyết định hoặc tự bịa tour; kết quả chính được quyết định bởi dữ liệu, điều kiện lọc, hồ sơ người dùng và mô hình Random Forest.
+
+Nếu được hỏi mô hình học từ đâu, có thể trả lời:
+
+&gt; Mô hình Random Forest được huấn luyện trong notebook Colab từ file `training_interactions.csv`. Mỗi dòng là một cặp người dùng - tour, gồm mức hợp sở thích, điểm đến, ngân sách, số ngày, giá và đánh giá. Phiên bản hiện tại dùng dữ liệu mô phỏng để chứng minh đầy đủ quy trình AI. Khi hệ thống có đủ dữ liệu người dùng thật, có thể huấn luyện lại mô hình bằng hành động bấm, lưu, đặt tour và đánh giá thật.
+
+Nếu được hỏi thành phần nào quyết định kết quả nhiều nhất, có thể trả lời:
+
+&gt; Điều kiện lọc quyết định tour nào được tham gia xếp hạng. Sau đó `engine_db.py`, `ml_ranker.py` và file mô hình `tour_recommender_model.pkl` quyết định thứ tự tour. DeepSeek hoặc Gemini chủ yếu quyết định cách diễn đạt câu trả lời, không quyết định danh sách tour chính.
+  </textarea>
+  <script>
+    (() => {
+      const source = document.getElementById('markdown-source').value.replace(/^\s*\n|\n\s*$/g, '');
+      const content = document.getElementById('content');
+      const toc = document.getElementById('toc');
+      const searchInput = document.getElementById('searchInput');
+      const searchMeta = document.getElementById('searchMeta');
+      const clearSearch = document.getElementById('clearSearch');
+      const emptySearch = document.getElementById('emptySearch');
+      const themeButton = document.getElementById('themeButton');
+      const menuButton = document.getElementById('menuButton');
+      const mobileOverlay = document.getElementById('mobileOverlay');
+      const progressBar = document.getElementById('progressBar');
+      const toTop = document.getElementById('toTop');
+      let observer;
+
+      const escapeHtml = (value) => value.replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+      const slugify = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\u0111/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const inline = (value) => {
+        const codes = [];
+        let text = value.replace(/`([^`]+)`/g, (_, code) => `@@CODE${codes.push(code)-1}@@`);
+        text = escapeHtml(text)
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        return text.replace(/@@CODE(\d+)@@/g, (_, index) => `<code>${escapeHtml(codes[Number(index)])}</code>`);
+      };
+      const markdownToHtml = (markdown) => {
+        const lines = markdown.replace(/\r/g, '').split('\n');
+        const out = [];
+        let index = 0;
+        const startsBlock = line => /^```|^#{1,3}\s|^---+$|^>\s?|^[-*]\s+|^\d+\.\s+/.test(line);
+        while (index < lines.length) {
+          const line = lines[index];
+          if (!line.trim()) { index++; continue; }
+          if (line.startsWith('```')) {
+            const language = line.slice(3).trim();
+            const code = [];
+            index++;
+            while (index < lines.length && !lines[index].startsWith('```')) code.push(lines[index++]);
+            index++;
+            out.push(`<div class="code-wrap"><button class="copy-code" type="button">Sao ch&#233;p</button><pre><code data-language="${escapeHtml(language)}">${escapeHtml(code.join('\n'))}</code></pre></div>`);
+            continue;
+          }
+          const heading = line.match(/^(#{1,3})\s+(.+)$/);
+          if (heading) {
+            const level = heading[1].length;
+            out.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+            index++;
+            continue;
+          }
+          if (/^---+$/.test(line.trim())) { out.push('<hr>'); index++; continue; }
+          if (/^>\s?/.test(line)) {
+            const quote = [];
+            while (index < lines.length && /^>\s?/.test(lines[index])) quote.push(lines[index++].replace(/^>\s?/, ''));
+            out.push(`<blockquote><p>${inline(quote.join(' '))}</p></blockquote>`);
+            continue;
+          }
+          if (/^[-*]\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^[-*]\s+/.test(lines[index])) items.push(lines[index++].replace(/^[-*]\s+/, ''));
+            out.push(`<ul>${items.map(item => `<li>${inline(item)}</li>`).join('')}</ul>`);
+            continue;
+          }
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\d+\.\s+/.test(lines[index])) items.push(lines[index++].replace(/^\d+\.\s+/, ''));
+            out.push(`<ol>${items.map(item => `<li>${inline(item)}</li>`).join('')}</ol>`);
+            continue;
+          }
+          const paragraph = [line.trim()];
+          index++;
+          while (index < lines.length && lines[index].trim() && !startsBlock(lines[index])) paragraph.push(lines[index++].trim());
+          out.push(`<p>${inline(paragraph.join(' '))}</p>`);
+        }
+        return out.join('\n');
+      };
+      const addHeadingIds = () => {
+        const used = new Map();
+        content.querySelectorAll('h1,h2,h3').forEach(heading => {
+          const base = slugify(heading.textContent) || 'section';
+          const count = used.get(base) || 0;
+          used.set(base, count + 1);
+          heading.id = count ? `${base}-${count + 1}` : base;
+        });
+      };
+      const buildToc = () => {
+        toc.innerHTML = '';
+        content.querySelectorAll('h2,h3').forEach(heading => {
+          const link = document.createElement('a');
+          link.href = `#${heading.id}`;
+          link.textContent = heading.textContent;
+          link.className = `level-${heading.tagName.slice(1)}`;
+          link.addEventListener('click', () => closeSidebar());
+          toc.appendChild(link);
+        });
+      };
+      const observeHeadings = () => {
+        if (observer) observer.disconnect();
+        observer = new IntersectionObserver(entries => {
+          const visible = entries.filter(entry => entry.isIntersecting).sort((a,b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+          if (!visible) return;
+          toc.querySelectorAll('a').forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`));
+        }, { rootMargin: '-18% 0px -70% 0px', threshold: 0 });
+        content.querySelectorAll('h2,h3').forEach(heading => observer.observe(heading));
+      };
+      const addCopyButtons = () => {
+        content.querySelectorAll('.copy-code').forEach(button => button.addEventListener('click', async () => {
+          const code = button.nextElementSibling.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            button.textContent = '\u0110\u00e3 ch\u00e9p';
+          } catch {
+            button.textContent = 'Kh\u00f4ng th\u1ec3 ch\u00e9p';
+          }
+          setTimeout(() => button.textContent = 'Sao ch\u00e9p', 1300);
+        }));
+      };
+      const highlight = query => {
+        if (!query) return 0;
+        let count = 0;
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            if (!node.nodeValue.trim() || node.parentElement.closest('pre,code,button')) return NodeFilter.FILTER_REJECT;
+            return node.nodeValue.toLocaleLowerCase('vi').includes(query) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          }
+        });
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+          const text = node.nodeValue;
+          const lower = text.toLocaleLowerCase('vi');
+          const fragment = document.createDocumentFragment();
+          let start = 0;
+          let position;
+          while ((position = lower.indexOf(query, start)) !== -1) {
+            fragment.append(text.slice(start, position));
+            const mark = document.createElement('mark');
+            mark.textContent = text.slice(position, position + query.length);
+            fragment.append(mark);
+            count++;
+            start = position + query.length;
+          }
+          fragment.append(text.slice(start));
+          node.replaceWith(fragment);
+        });
+        return count;
+      };
+      const render = (query = '') => {
+        content.innerHTML = markdownToHtml(source);
+        addHeadingIds();
+        buildToc();
+        addCopyButtons();
+        const normalized = query.trim().toLocaleLowerCase('vi');
+        const matches = highlight(normalized);
+        searchMeta.textContent = normalized ? `${matches} k\u1ebft qu\u1ea3` : '';
+        clearSearch.style.display = normalized ? 'block' : 'none';
+        emptySearch.style.display = normalized && matches === 0 ? 'block' : 'none';
+        observeHeadings();
+      };
+      const setMeta = () => {
+        const words = source.replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`\-]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+        const minutes = Math.max(1, Math.ceil(words / 220));
+        document.getElementById('documentMeta').innerHTML = `<span>&#9719; ${minutes} ph&#250;t &#273;&#7885;c</span><span>&#9678; ${words.toLocaleString('vi-VN')} t&#7915;</span><span>&#9670; T&#224;i li&#7879;u offline</span>`;
+      };
+      const applyTheme = theme => {
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem('ai-doc-theme', theme);
+        themeButton.textContent = theme === 'dark' ? '\u2600' : '\u25d0';
+      };
+      const closeSidebar = () => {
+        document.body.classList.remove('sidebar-open');
+        menuButton.setAttribute('aria-expanded', 'false');
+      };
+      const preferredTheme = localStorage.getItem('ai-doc-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      applyTheme(preferredTheme);
+      themeButton.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+      menuButton.addEventListener('click', () => {
+        const open = document.body.classList.toggle('sidebar-open');
+        menuButton.setAttribute('aria-expanded', String(open));
+      });
+      mobileOverlay.addEventListener('click', closeSidebar);
+      document.getElementById('printButton').addEventListener('click', () => window.print());
+      clearSearch.addEventListener('click', () => { searchInput.value = ''; render(); searchInput.focus(); });
+      let timer;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => render(searchInput.value), 130);
+      });
+      toTop.addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
+      addEventListener('scroll', () => {
+        const doc = document.documentElement;
+        const max = doc.scrollHeight - doc.clientHeight;
+        progressBar.style.width = `${max > 0 ? (doc.scrollTop / max) * 100 : 0}%`;
+        toTop.classList.toggle('visible', doc.scrollTop > 650);
+      }, { passive: true });
+      addEventListener('keydown', event => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+          event.preventDefault();
+          searchInput.focus();
+          searchInput.select();
+          if (innerWidth <= 900) {
+            document.body.classList.add('sidebar-open');
+            menuButton.setAttribute('aria-expanded', 'true');
+          }
+        }
+        if (event.key === 'Escape') closeSidebar();
+      });
+      render();
+      setMeta();
+    })();
+  </script>
+</body>
+</html>

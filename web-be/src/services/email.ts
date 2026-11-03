@@ -1,10 +1,51 @@
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character] || character));
+import nodemailer from 'nodemailer';
+
+const escapeHtml = (value: string) => value.replace(
+  /[&<>"']/g,
+  (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[character] || character),
+);
 
 interface VerificationEmailInput {
   to: string;
   name: string;
   code: string;
 }
+
+interface SmtpEnvironment {
+  SMTP_HOST?: string;
+  SMTP_PORT?: string;
+  SMTP_SECURE?: string;
+  SMTP_USER?: string;
+  SMTP_PASS?: string;
+}
+
+export const getSmtpConfig = (environment: SmtpEnvironment) => {
+  const host = environment.SMTP_HOST?.trim();
+  const user = environment.SMTP_USER?.trim();
+  const pass = environment.SMTP_PASS?.trim();
+  const port = Number.parseInt(environment.SMTP_PORT?.trim() || '587', 10);
+  const secure = environment.SMTP_SECURE?.trim().toLowerCase() === 'true';
+
+  if (!host) throw new Error('SMTP_HOST is required.');
+  if (!user || !pass) throw new Error('SMTP_USER and SMTP_PASS are required.');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('SMTP_PORT must be a valid TCP port.');
+  }
+
+  return {
+    host,
+    port,
+    secure,
+    requireTLS: !secure,
+    auth: { user, pass },
+  };
+};
 
 export const sendVerificationEmail = async ({ to, name, code }: VerificationEmailInput) => {
   const provider = (process.env.EMAIL_PROVIDER || 'console').trim().toLowerCase();
@@ -13,30 +54,21 @@ export const sendVerificationEmail = async ({ to, name, code }: VerificationEmai
     return;
   }
 
-  if (provider !== 'resend') {
+  if (provider !== 'smtp') {
     throw new Error(`Unsupported EMAIL_PROVIDER: ${provider}`);
   }
 
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.MAIL_FROM?.trim();
-  if (!apiKey || !from) throw new Error('RESEND_API_KEY and MAIL_FROM are required.');
+  const smtpConfig = getSmtpConfig(process.env);
+  const transporter = nodemailer.createTransport(smtpConfig);
+  const fromAddress = process.env.SMTP_FROM?.trim() || smtpConfig.auth.user;
+  const fromName = process.env.SMTP_FROM_NAME?.trim() || 'TourAI';
+  const expirationMinutes = process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES || '10';
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: 'Mã xác minh tài khoản TourAI',
-      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937"><h2>Xác minh tài khoản TourAI</h2><p>Xin chào ${escapeHtml(name)},</p><p>Mã xác minh của bạn là:</p><p style="font-size:30px;font-weight:700;letter-spacing:8px;color:#0f766e">${code}</p><p>Mã có hiệu lực trong ${process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES || 10} phút.</p><p>Nếu bạn không thực hiện đăng ký, hãy bỏ qua email này.</p></div>`,
-    }),
+  await transporter.sendMail({
+    from: { name: fromName, address: fromAddress },
+    to,
+    subject: 'M\u00e3 x\u00e1c minh t\u00e0i kho\u1ea3n TourAI',
+    text: `Xin ch\u00e0o ${name}, m\u00e3 x\u00e1c minh TourAI c\u1ee7a b\u1ea1n l\u00e0 ${code}. M\u00e3 c\u00f3 hi\u1ec7u l\u1ef1c trong ${expirationMinutes} ph\u00fat.`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937"><h2>X\u00e1c minh t\u00e0i kho\u1ea3n TourAI</h2><p>Xin ch\u00e0o ${escapeHtml(name)},</p><p>M\u00e3 x\u00e1c minh c\u1ee7a b\u1ea1n l\u00e0:</p><p style="font-size:30px;font-weight:700;letter-spacing:8px;color:#0f766e">${code}</p><p>M\u00e3 c\u00f3 hi\u1ec7u l\u1ef1c trong ${expirationMinutes} ph\u00fat.</p><p>N\u1ebfu b\u1ea1n kh\u00f4ng th\u1ef1c hi\u1ec7n \u0111\u0103ng k\u00fd, h\u00e3y b\u1ecf qua email n\u00e0y.</p></div>`,
   });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Email provider failed (${response.status}): ${detail.slice(0, 300)}`);
-  }
 };

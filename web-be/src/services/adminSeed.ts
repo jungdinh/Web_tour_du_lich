@@ -1,9 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { query } from '../db/index.js';
+import { assertStrongPassword } from './passwordSecurity.js';
 
 export const ensureDefaultAdmin = async () => {
   const email = (process.env.ADMIN_EMAIL || 'admin123@gmail.com').trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD || '123456';
+  const password = process.env.ADMIN_PASSWORD?.trim() || '';
   const name = process.env.ADMIN_NAME || 'TourAI Admin';
   const syncPassword = process.env.ADMIN_SYNC_PASSWORD === 'true';
 
@@ -11,6 +12,8 @@ export const ensureDefaultAdmin = async () => {
     console.warn('[Admin] ADMIN_EMAIL/ADMIN_PASSWORD is not configured; skipping seed.');
     return;
   }
+
+  await assertStrongPassword(password);
 
   const existing = await query('SELECT id, role FROM users WHERE email = $1', [email]);
   if (existing.rows.length === 0) {

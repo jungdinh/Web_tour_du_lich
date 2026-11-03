@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { bookingApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Booking, PaginatedResponse } from '@/types'
+import { Dropdown } from '@/components/Dropdown'
 import styles from './Bookings.module.css'
 
 type BookingStatusFilter = 'all' | Booking['status']
@@ -180,7 +181,7 @@ export function BookingsPage() {
       <div className={styles.page}>
         <header className={styles.header}>
           <div>
-            <p className={styles.eyebrow}>TOURAI ACCOUNT</p>
+            <p className={styles.eyebrow}>VIVU ACCOUNT</p>
             <h1>Lịch sử đặt tour</h1>
             <p>Theo dõi đơn đặt tour, trạng thái thanh toán và thông tin khởi hành của bạn.</p>
           </div>
@@ -190,17 +191,11 @@ export function BookingsPage() {
         <section className={styles.filters} aria-label="Bộ lọc lịch sử đặt tour">
           <label>
             Trạng thái đơn
-            <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value as BookingStatusFilter) }}>
-              <option value="all">Tất cả đơn</option>
-              {Object.entries(bookingStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-            </select>
+            <Dropdown className={styles.filterDropdown} value={status} onChange={(val) => { setPage(1); setStatus(val as BookingStatusFilter) }} options={[ {value: 'all', label: 'Tất cả đơn'}, ...Object.entries(bookingStatusLabels).map(([val, label]) => ({value: val, label})) ]} />
           </label>
           <label>
             Trạng thái thanh toán
-            <select value={paymentStatus} onChange={(event) => { setPage(1); setPaymentStatus(event.target.value as PaymentStatusFilter) }}>
-              <option value="all">Tất cả thanh toán</option>
-              {Object.entries(paymentStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-            </select>
+            <Dropdown className={styles.filterDropdown} value={paymentStatus} onChange={(val) => { setPage(1); setPaymentStatus(val as PaymentStatusFilter) }} options={[ {value: 'all', label: 'Tất cả thanh toán'}, ...Object.entries(paymentStatusLabels).map(([val, label]) => ({value: val, label})) ]} />
           </label>
           {(status !== 'all' || paymentStatus !== 'all') && <button type="button" className={styles.clearButton} onClick={resetFilters}>Xóa bộ lọc</button>}
         </section>

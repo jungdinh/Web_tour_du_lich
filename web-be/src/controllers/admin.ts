@@ -1,14 +1,22 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { query } from '../db/index.js';
+import type { PoolClient } from 'pg';
+import { getClient, query } from '../db/index.js';
 import { AuthRequest } from './auth.js';
 import { applyTravelTypeFilter, invalidateTourCache } from './tours.js';
 import { filterFutureScheduleRows, isFutureScheduleDate, normalizeScheduleDate } from '../utils/schedule.js';
+import { assertStrongPassword, PasswordSecurityError } from '../services/passwordSecurity.js';
 
 const MAX_TOUR_GALLERY_IMAGES = 60;
+const tourTagNames = [
+  'family', 'romantic', 'adventure', 'relax', 'spiritual', 'beach', 'mountain',
+  'nature', 'city', 'culture', 'history', 'festival', 'photography', 'wildlife',
+  'cruise', 'nightlife', 'water_sports', 'food', 'shopping', 'budget', 'luxury',
+] as const;
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -76,12 +84,24 @@ const tourSchema = z.object({
   description: z.string().trim().min(1).max(20000),
   image_url: z.string().trim().url().optional().nullable().or(z.literal('')),
   gallery: z.array(z.string().trim().url()).min(1).max(MAX_TOUR_GALLERY_IMAGES),
-  season: z.string().trim().min(1).max(50),
+  season: z.string().trim().max(50).nullish().transform(val => val ?? ''),
   duration_label: z.string().trim().max(20).optional().nullable().or(z.literal('')),
   original_price: z.coerce.number().int().min(0).optional().nullable(),
   highlights: z.array(z.string().trim().min(1).max(500)).max(30).default([]),
   places: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
   topics: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
+  tags: z.array(z.object({
+    tag: z.enum(tourTagNames),
+    weight: z.coerce.number().min(0.1).max(1),
+  })).min(1, 'Vui lòng chọn ít nhất một hashtag AI.').max(tourTagNames.length).superRefine((tags, context) => {
+    const seen = new Set<string>();
+    tags.forEach((item, index) => {
+      if (seen.has(item.tag)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: [index, 'tag'], message: 'Hashtag không được trùng nhau.' });
+      }
+      seen.add(item.tag);
+    });
+  }),
   itinerary: z.array(itineraryDaySchema).max(30).default([]),
   included: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
   excluded: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
@@ -135,6 +155,20 @@ const roleSchema = z.object({
   role: z.enum(['user', 'admin']),
 });
 
+const replaceTourTags = async (client: PoolClient, tourId: number, tags: Array<{ tag: string; weight: number }>) => {
+  await client.query('DELETE FROM tour_tags WHERE tour_id = $1', [tourId]);
+  await client.query(
+    `INSERT INTO tour_tags (tour_id, tag, weight)
+     SELECT $1, item.tag, item.weight
+     FROM UNNEST($2::text[], $3::float8[]) AS item(tag, weight)`,
+    [tourId, tags.map(({ tag }) => tag), tags.map(({ weight }) => weight)],
+  );
+};
+
+const passwordSchema = z.object({
+  password: z.string().min(1, 'Vui lòng nhập mật khẩu mới.'),
+});
+
 const parseId = (value: string) => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid id');
@@ -151,7 +185,10 @@ export const getDashboard = async (_req: AuthRequest, res: Response) => {
           (SELECT COUNT(*)::int FROM reviews) AS reviews,
           (SELECT COUNT(*)::int FROM favorites) AS favorites,
           (SELECT COUNT(*)::int FROM user_actions) AS actions,
-          (SELECT COUNT(*)::int FROM chat_messages) AS messages
+          (SELECT COUNT(*)::int FROM chat_messages) AS messages,
+          (SELECT COUNT(*)::int FROM bookings) AS bookings,
+          (SELECT COALESCE(SUM(total_amount), 0)::float FROM bookings WHERE payment_status = 'paid') AS revenue,
+          (SELECT COUNT(*)::int FROM bookings WHERE payment_status = 'paid') AS paid_bookings
       `),
       query(`SELECT destination, COUNT(*)::int AS count FROM tours GROUP BY destination ORDER BY count DESC LIMIT 6`),
       query(`SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC LIMIT 6`),
@@ -212,7 +249,13 @@ export const getAdminTours = async (req: Request, res: Response) => {
     params.push(limit, offset);
 
     const result = await query(
-      `SELECT id, name, destination, price, duration, duration_label, original_price, description, avg_rating, review_count, image_url, gallery, season, highlights, places, topics, itinerary, included, excluded, schedule, transport, created_at, updated_at
+      `SELECT id, name, destination, price, duration, duration_label, original_price, description, avg_rating, review_count, image_url, gallery, season, highlights, places, topics, itinerary, included, excluded, schedule, transport,
+              COALESCE((
+                SELECT json_agg(json_build_object('tag', tt.tag, 'weight', tt.weight) ORDER BY tt.weight DESC, tt.tag ASC)
+                FROM tour_tags tt
+                WHERE tt.tour_id = tours.id
+              ), '[]'::json) AS tags,
+              created_at, updated_at
        FROM tours ${where} ORDER BY created_at DESC NULLS LAST, id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
@@ -232,9 +275,11 @@ export const getAdminTours = async (req: Request, res: Response) => {
 };
 
 export const createAdminTour = async (req: Request, res: Response) => {
+  const client = await getClient();
   try {
     const payload = tourSchema.parse(req.body);
-    const result = await query(
+    await client.query('BEGIN');
+    const result = await client.query(
       `INSERT INTO tours (
          name, destination, price, duration, duration_label, original_price, description,
          image_url, gallery, season, highlights, places, topics, itinerary, included,
@@ -252,20 +297,27 @@ export const createAdminTour = async (req: Request, res: Response) => {
         JSON.stringify(payload.excluded), JSON.stringify(payload.schedule), JSON.stringify(payload.transport),
       ],
     );
+    await replaceTourTags(client, Number(result.rows[0].id), payload.tags);
+    await client.query('COMMIT');
     invalidateTourCache();
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({ ...result.rows[0], tags: payload.tags });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
     if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     console.error('Admin create tour error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 
 export const updateAdminTour = async (req: Request, res: Response) => {
+  const client = await getClient();
   try {
     const id = parseId(req.params.id);
     const payload = tourSchema.parse(req.body);
-    const result = await query(
+    await client.query('BEGIN');
+    const result = await client.query(
       `UPDATE tours
        SET name = $1, destination = $2, price = $3, duration = $4, duration_label = $5,
            original_price = $6, description = $7, image_url = $8, gallery = $9, season = $10,
@@ -281,16 +333,24 @@ export const updateAdminTour = async (req: Request, res: Response) => {
          payload.image_url || null, payload.gallery, payload.season, payload.highlights,
          payload.places, payload.topics, JSON.stringify(payload.itinerary), JSON.stringify(payload.included),
          JSON.stringify(payload.excluded), JSON.stringify(payload.schedule), JSON.stringify(payload.transport), id,
-       ],
+      ],
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Tour not found' });
+    if (!result.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tour not found' });
+    }
+    await replaceTourTags(client, id, payload.tags);
+    await client.query('COMMIT');
     invalidateTourCache();
-    res.json(result.rows[0]);
+    res.json({ ...result.rows[0], tags: payload.tags });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
     if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin update tour error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 
@@ -304,6 +364,20 @@ export const deleteAdminTour = async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
     console.error('Admin delete tour error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const bulkDeleteAdminTours = async (req: Request, res: Response) => {
+  try {
+    const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1) }).parse(req.body);
+    const result = await query('DELETE FROM tours WHERE id = ANY($1::int[]) RETURNING id', [ids]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Tours not found' });
+    invalidateTourCache();
+    res.status(200).json({ deleted: result.rows.length });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid tour IDs' });
+    console.error('Admin bulk delete tours error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -412,6 +486,33 @@ export const updateAdminUserStatus = async (req: AuthRequest, res: Response) => 
   }
 };
 
+export const updateAdminUserPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseId(req.params.id);
+    const { password } = passwordSchema.parse(req.body);
+    await assertStrongPassword(password);
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await query(
+      `UPDATE users
+       SET password_hash = $1,
+           auth_provider = CASE WHEN google_sub IS NOT NULL THEN 'both' ELSE 'local' END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, name, email, role, is_active, created_at, updated_at`,
+      [passwordHash, id],
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+    console.info(`[Admin] Password reset for user ${id} by admin ${req.user?.id}`);
+    res.json({ message: 'Đã cập nhật mật khẩu.', user: result.rows[0] });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));
+    if (error instanceof PasswordSecurityError) return res.status(error.status).json({ error: error.message, code: error.code });
+    if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
+    console.error('Admin user password update error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const deleteAdminUser = async (req: AuthRequest, res: Response) => {
   try {
     const id = parseId(req.params.id);
@@ -421,6 +522,11 @@ export const deleteAdminUser = async (req: AuthRequest, res: Response) => {
     res.status(204).send();
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid id') return res.status(400).json({ error: error.message });
+    if ((error as { code?: string }).code === '23503') {
+      return res.status(409).json({
+        error: 'Kh\u00f4ng th\u1ec3 x\u00f3a t\u00e0i kho\u1ea3n v\u00ec v\u1eabn c\u00f2n d\u1eef li\u1ec7u li\u00ean quan c\u1ea7n l\u01b0u tr\u1eef. H\u00e3y kh\u00f3a t\u00e0i kho\u1ea3n thay th\u1ebf.',
+      });
+    }
     console.error('Admin delete user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -5,6 +5,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { query } from '../db/index.js';
 import { sendVerificationEmail } from '../services/email.js';
+import { assertStrongPassword, PasswordSecurityError } from '../services/passwordSecurity.js';
 import { z } from 'zod';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -17,7 +18,7 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 export const registerSchema = z.object({
   name: z.string().trim().min(2, 'Họ tên phải có ít nhất 2 ký tự').max(255),
   email: z.string().trim().email('Email không hợp lệ').max(255).transform((value) => value.toLowerCase()),
-  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 });
 
 export const loginSchema = z.object({
@@ -37,7 +38,7 @@ const googleLoginSchema = z.object({
 export interface AuthUser { id: number; name: string; email: string; role: string }
 export interface AuthRequest extends Request { user?: AuthUser }
 
-const createToken = (user: AuthUser) => jwt.sign(
+export const createToken = (user: AuthUser) => jwt.sign(
   { id: user.id, email: user.email, role: user.role },
   JWT_SECRET,
   { expiresIn: JWT_EXPIRES_IN },
@@ -73,7 +74,7 @@ const publicUser = (user: Record<string, unknown>): AuthUser => ({
   role: String(user.role),
 });
 
-const verifyGoogleCredential = async (credential: string) => {
+export const verifyGoogleCredential = async (credential: string) => {
   if (!googleClient || !GOOGLE_CLIENT_ID) throw new Error('GOOGLE_AUTH_NOT_CONFIGURED');
 
   const ticket = await googleClient.verifyIdToken({
@@ -98,6 +99,7 @@ const verifyGoogleCredential = async (credential: string) => {
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password } = registerSchema.parse(req.body);
+    await assertStrongPassword(password);
     const existing = await query(
       'SELECT id, name, email, role, email_verified_at FROM users WHERE email = $1',
       [email],
@@ -134,6 +136,9 @@ export const register = async (req: Request, res: Response) => {
     return res.status(201).json({ requires_verification: true, email, message: 'Mã xác minh đã được gửi đến email của bạn.' });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
+    if (error instanceof PasswordSecurityError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     console.error('Register error:', error);
     return res.status(500).json({ error: 'Không thể đăng ký tài khoản.' });
   }

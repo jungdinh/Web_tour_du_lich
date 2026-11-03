@@ -301,7 +301,7 @@ Không đưa file `.env`, API key, mật khẩu database, secret SePay hoặc se
 - Email: `EMAIL_PROVIDER`, `EMAIL_VERIFICATION_EXPIRES_MINUTES`, `EMAIL_VERIFICATION_SECRET`, `RESEND_API_KEY`, `MAIL_FROM`.
 - Google: `GOOGLE_CLIENT_ID`.
 - SePay: `SEPAY_PAYMENT_MODE`, `SEPAY_ENV`, merchant id/secret, IPN secret, bank/account QR và callback URL.
-- Admin seed: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SYNC_PASSWORD`.
+- Admin seed: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_SYNC_PASSWORD`. Mật khẩu local phải dài 12-24 ký tự, có chữ hoa, số, ký tự đặc biệt và được kiểm tra với Pwned Passwords bằng mô hình k-anonymity trước khi tạo tài khoản. Đặt `ADMIN_SYNC_PASSWORD=false` để mật khẩu admin đổi trong giao diện không bị seed ghi đè lúc restart.
 
 ### Frontend (`web-fe`/Vercel)
 

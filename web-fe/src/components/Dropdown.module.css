@@ -1,0 +1,205 @@
+.dropdownContainer {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+}
+
+.dropdownTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.disabled .dropdownTrigger {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+  width: 14px;
+  height: 14px;
+}
+
+.dropdownContainer.open .chevron {
+  transform: rotate(180deg);
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+  min-width: 150px;
+  max-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: dropdownIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top left;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border, #e2e8f0) transparent;
+}
+
+.dropdownMenu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dropdownMenu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdownMenu::-webkit-scrollbar-thumb {
+  background: var(--color-border, #cbd5e1);
+  border-radius: 4px;
+}
+
+.dropdownMenu::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted, #94a3b8);
+}
+
+/* RECTANGULAR 2-COLUMN GRID (FOR DESTINATION / LONG LISTS) */
+.gridMenu2 {
+  min-width: 430px;
+  max-width: 480px;
+  max-height: 290px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+}
+
+/* RECTANGULAR 3-COLUMN GRID */
+.gridMenu3 {
+  min-width: 520px;
+  max-width: 580px;
+  max-height: 270px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+}
+
+.fullWidthItem {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--color-border-subtle, #f1f5f9);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: scaleY(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  outline: none;
+  white-space: nowrap;
+}
+
+.itemLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdownItem:hover,
+.dropdownItem:focus-visible {
+  background: var(--color-bg, #f8fafc);
+  border-color: var(--color-border, #e2e8f0);
+}
+
+.dropdownItem.active {
+  background: var(--color-accent-subtle, #e0f2fe);
+  border-color: var(--color-accent-border, #bae6fd);
+  color: var(--color-accent, #0284c7);
+  font-weight: 600;
+}
+
+.checkIcon {
+  color: inherit;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.itemDisabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .gridMenu2,
+  .gridMenu3 {
+    min-width: min(90vw, 320px);
+    grid-template-columns: 1fr;
+  }
+}
+
+/* DARK MODE */
+[data-theme='dark'] .dropdownMenu {
+  background: #141d2e;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .dropdownItem {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .dropdownItem:hover,
+[data-theme='dark'] .dropdownItem:focus-visible {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .dropdownItem.active {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: #38bdf8;
+}
+
+[data-theme='dark'] .fullWidthItem {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}

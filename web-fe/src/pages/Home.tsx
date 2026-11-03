@@ -4,6 +4,9 @@ import { tourApi, recommendationApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { TourCard, TourCardSkeleton } from '@/components/TourCard'
 import { AiIcon } from '@/components/AiIcon'
+import { ImageWithFallback } from '@/components/ImageWithFallback'
+import { useTourImagesReady } from '@/hooks/useTourImagesReady'
+import { formatRatingToFive } from '@/utils/rating'
 import type { Tour, Recommendation } from '@/types'
 import styles from './Home.module.css'
 
@@ -13,6 +16,27 @@ const CATEGORY_TABS = [
   { id: 'mountain', label: '🏔️ Tây Bắc & Đà Lạt' },
   { id: 'international', label: '✈️ Du lịch Quốc tế' },
 ]
+
+const HERO_CARD_POSITIONS = [
+  'heroCardTopLeft',
+  'heroCardBottomLeft',
+  'heroCardTopRight',
+  'heroCardBottomRight',
+] as const
+
+const HERO_QUICK_LINKS = [
+  { label: '🔥 Tour hot', to: '/search' },
+  { label: '🏖️ Biển đảo', to: '/search?q=Phú Quốc' },
+  { label: '⛰️ Đà Lạt', to: '/search?q=Đà Lạt' },
+  { label: '✈️ Quốc tế', to: '/search?travelType=international' },
+  { label: '💰 Dưới 5 triệu', to: '/search?maxPrice=5000000' },
+]
+
+const formatHeroPrice = (price: number) => new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+}).format(price)
 
 export function HomePage() {
   const { token } = useAuthStore()
@@ -94,11 +118,54 @@ export function HomePage() {
     return popularTours
   }, [popularTours, activeTab])
 
+  const visibleRecommendations = useMemo(() => recommendations.slice(0, 4), [recommendations])
+  const visiblePopularTours = useMemo(() => filteredPopularTours.slice(0, 8), [filteredPopularTours])
+  const heroFloatingTours = useMemo(() => {
+    const destinations = new Set<string>()
+
+    return popularTours.filter((tour) => {
+      const destination = (tour.destination || tour.name).trim().toLocaleLowerCase('vi')
+      if (!destination || destinations.has(destination)) return false
+      destinations.add(destination)
+      return true
+    }).slice(0, HERO_CARD_POSITIONS.length)
+  }, [popularTours])
+  const recommendationImagesReady = useTourImagesReady(visibleRecommendations)
+  const popularImagesReady = useTourImagesReady(visiblePopularTours)
+
   return (
     <div className={styles.page}>
       {/* HERO SECTION */}
       <section className={styles.hero}>
         <div className={styles.heroBackgroundGlow} />
+        <div className={styles.heroRouteLineLeft} />
+        <div className={styles.heroRouteLineRight} />
+
+        <div className={styles.heroFloatingLayer}>
+          {heroFloatingTours.map((tour, index) => (
+            <Link
+              key={tour.id}
+              to={`/tours/${tour.id}`}
+              className={`${styles.heroDestinationCard} ${styles[HERO_CARD_POSITIONS[index]]}`}
+              aria-label={`Xem tour ${tour.name}`}
+            >
+              <ImageWithFallback
+                src={tour.image_url || tour.gallery?.[0]}
+                alt={tour.destination || tour.name}
+                className={styles.heroDestinationImage}
+              />
+              <span className={styles.heroDestinationOverlay} />
+              {tour.avg_rating > 0 && (
+                <span className={styles.heroDestinationRating}>{formatRatingToFive(tour.avg_rating)} ★</span>
+              )}
+              <span className={styles.heroDestinationInfo}>
+                <strong>{tour.destination || tour.name}</strong>
+                <small>Từ {formatHeroPrice(tour.price)}</small>
+              </span>
+            </Link>
+          ))}
+        </div>
+
         <div className="container">
           <div className={styles.heroContent}>
             <div className={styles.heroBadge}>
@@ -112,7 +179,7 @@ export function HomePage() {
             </h1>
 
             <p className={styles.heroSubtitle}>
-              TourAI kết hợp tìm kiếm tour thông minh cùng trợ lý AI để phân tích sở thích, ngân sách
+              Vivu kết hợp tìm kiếm tour thông minh cùng trợ lý AI để phân tích sở thích, ngân sách
               và tự động thiết kế hành trình du lịch hoàn hảo nhất cho bạn.
             </p>
 
@@ -148,6 +215,43 @@ export function HomePage() {
                 <span className={styles.heroAiArrow}>→</span>
               </Link>
             </div>
+
+            <nav className={styles.heroQuickLinks} aria-label="Tìm tour nhanh">
+              {HERO_QUICK_LINKS.map((item) => (
+                <Link key={item.label} to={item.to} className={styles.heroQuickLink}>
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            {heroFloatingTours.length > 0 && (
+              <div className={styles.mobileDestinationRail} aria-label="Diem den noi bat">
+                {heroFloatingTours.map((tour) => (
+                  <Link
+                    key={tour.id}
+                    to={`/tours/${tour.id}`}
+                    className={styles.mobileDestinationCard}
+                    aria-label={`Xem tour ${tour.name}`}
+                  >
+                    <ImageWithFallback
+                      src={tour.image_url || tour.gallery?.[0]}
+                      alt={tour.destination || tour.name}
+                      className={styles.mobileDestinationImage}
+                    />
+                    <span className={styles.mobileDestinationOverlay} />
+                    {tour.avg_rating > 0 && (
+                      <span className={styles.mobileDestinationRating}>
+                        {formatRatingToFive(tour.avg_rating)} {'\u2605'}
+                      </span>
+                    )}
+                    <span className={styles.mobileDestinationInfo}>
+                      <strong>{tour.destination || tour.name}</strong>
+                      <small>{'T\u1eeb '}{formatHeroPrice(tour.price)}</small>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -167,8 +271,10 @@ export function HomePage() {
             </div>
 
             <div className={styles.tourGrid}>
-              {recommendations.slice(0, 4).map((tour) => (
-                <TourCard key={tour.id} tour={tour} badge="🎯 Phù hợp nhất" />
+              {recommendationImagesReady ? visibleRecommendations.map((tour) => (
+                <TourCard key={tour.id} tour={tour} compactOnMobile badge="🎯 Phù hợp nhất" />
+              )) : Array.from({ length: visibleRecommendations.length || 4 }).map((_, index) => (
+                <TourCardSkeleton key={index} compactOnMobile />
               ))}
             </div>
           </div>
@@ -202,10 +308,10 @@ export function HomePage() {
             ))}
           </div>
 
-          {loading ? (
+          {loading || !popularImagesReady ? (
             <div className={styles.tourGrid}>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <TourCardSkeleton key={i} />
+              {Array.from({ length: visiblePopularTours.length || 8 }).map((_, i) => (
+                <TourCardSkeleton key={i} compactOnMobile />
               ))}
             </div>
           ) : filteredPopularTours.length === 0 ? (
@@ -215,8 +321,8 @@ export function HomePage() {
             </div>
           ) : (
             <div className={styles.tourGrid}>
-              {filteredPopularTours.slice(0, 8).map((tour) => (
-                <TourCard key={tour.id} tour={tour} />
+              {visiblePopularTours.map((tour) => (
+                <TourCard key={tour.id} tour={tour} compactOnMobile />
               ))}
             </div>
           )}
@@ -234,7 +340,7 @@ export function HomePage() {
               </span>
               <h2 className={styles.ctaTitle}>Chưa chọn được điểm đến ưng ý?</h2>
               <p className={styles.ctaDesc}>
-                Hãy để trợ lý AI của TourAI trò chuyện, thấu hiểu mong muốn và tự động thiết kế
+                Hãy để trợ lý AI của Vivu trò chuyện, thấu hiểu mong muốn và tự động thiết kế
                 lịch trình chuyến đi hoàn hảo trong tích tắc.
               </p>
               <Link to="/chat" className={styles.ctaBtn}>
@@ -247,7 +353,7 @@ export function HomePage() {
                   <AiIcon size={22} />
                 </span>
                 <div>
-                  <div className={styles.bubbleName}>TourAI Assistant</div>
+                  <div className={styles.bubbleName}>Vivu Assistant</div>
                   <div className={styles.bubbleText}>
                     "Mình có thể giúp bạn tìm tour đi Đà Lạt 3 ngày 2 đêm với ngân sách dưới 3 triệu!"
                   </div>
@@ -258,47 +364,6 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* WHY CHOOSE TOUAI FEATURES */}
-      <section className={styles.features}>
-        <div className="container">
-          <div className={styles.featuresHeader}>
-            <div className={styles.sectionTag}>Ưu điểm vượt trội</div>
-            <h2 className={styles.sectionTitle}>Tại sao nên lựa chọn TourAI?</h2>
-          </div>
-
-          <div className={styles.featureGrid}>
-            <div className={styles.featureCard}>
-              <div className={`${styles.featureIconWrap} ${styles.iconTeal}`}>
-                <span>🎯</span>
-              </div>
-              <h3 className={styles.featureTitle}>Cá nhân hóa theo sở thích</h3>
-              <p className={styles.featureDesc}>
-                Mô hình AI học hỏi từ tương tác và đánh giá để gợi ý chính xác những điểm đến phù hợp nhất với bạn.
-              </p>
-            </div>
-
-            <div className={styles.featureCard}>
-              <div className={`${styles.featureIconWrap} ${styles.iconBlue}`}>
-                <span>💬</span>
-              </div>
-              <h3 className={styles.featureTitle}>Tư vấn lịch trình tự nhiên</h3>
-              <p className={styles.featureDesc}>
-                Trò chuyện trực tiếp bằng ngôn ngữ tự nhiên, hỏi đáp mọi chi tiết về địa điểm, ăn uống và chi phí.
-              </p>
-            </div>
-
-            <div className={styles.featureCard}>
-              <div className={`${styles.featureIconWrap} ${styles.iconAmber}`}>
-                <span>⭐</span>
-              </div>
-              <h3 className={styles.featureTitle}>Dữ liệu & Đánh giá minh bạch</h3>
-              <p className={styles.featureDesc}>
-                Hàng ngàn đánh giá thực từ du khách, thông tin lịch trình chi tiết và giá cả minh bạch không ẩn phí.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

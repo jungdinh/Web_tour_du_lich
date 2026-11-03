@@ -145,13 +145,25 @@ class SlotFillingEngine:
             'phan thiết': 'Phan Thiết',
             'côn đảo': 'Côn Đảo',
             'tay ninh': 'T\u00e2y Ninh',
+            'chau au': 'Ch\u00e2u \u00c2u',
+            'europe': 'Ch\u00e2u \u00c2u',
+            'dong au': '\u0110\u00f4ng \u00c1',
+            'dong nam a': '\u0110\u00f4ng Nam \u00c1',
+            'bac au': 'B\u1eafc \u00c2u',
+            'chau a': 'Ch\u00e2u \u00c1',
         }
 
         text_lower = self._no_diacritics(text)
+        departure_prefixes = ("di tu ", "xuat phat tu ", "khoi hanh tu ", "from ")
         for keyword, dest in destinations.items():
-            # Compare both strip-normalized strings
-            if self._no_diacritics(keyword) in text_lower:
-                return dest
+            normalized_keyword = self._no_diacritics(keyword)
+            match_start = text_lower.find(normalized_keyword)
+            if match_start < 0:
+                continue
+            prefix = text_lower[max(0, match_start - 24):match_start]
+            if any(prefix.endswith(departure_prefix) for departure_prefix in departure_prefixes):
+                continue
+            return dest
 
         return None
 

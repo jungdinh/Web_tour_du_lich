@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '@/api'
+import { TravelProfileSummary } from '@/components/TravelProfileSummary'
 import { useAuthStore } from '@/stores/auth'
-import type { User } from '@/types'
+import type { Tag, User } from '@/types'
 import styles from './Profile.module.css'
 
 export function ProfilePage() {
   const navigate = useNavigate()
   const { token } = useAuthStore()
   const [profile, setProfile] = useState<User | null>(null)
-  const [preferences, setPreferences] = useState<Array<{ tag: string; weight: number }>>([])
+  const [preferences, setPreferences] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function ProfilePage() {
         const data = await authApi.getProfile()
         setProfile(data)
         if ('preferences' in data) {
-          setPreferences((data as unknown as { preferences: Array<{ tag: string; weight: number }> }).preferences)
+          setPreferences((data as unknown as { preferences: Tag[] }).preferences)
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error)
@@ -56,31 +57,14 @@ export function ProfilePage() {
         </div>
 
         <div className={styles.section}>
-          <h2>Sở thích của bạn</h2>
-          {preferences.length === 0 ? (
-            <p className={styles.empty}>
-              Bạn chưa có sở thích nào. Hãy tìm kiếm và tương tác với các tour để chúng tôi hiểu bạn hơn!
-            </p>
-          ) : (
-            <div className={styles.preferences}>
-              {preferences
-                .sort((a, b) => b.weight - a.weight)
-                .map((pref) => (
-                  <div key={pref.tag} className={styles.prefItem}>
-                    <span className={styles.prefTag}>{pref.tag}</span>
-                    <div className={styles.prefBar}>
-                      <div
-                        className={styles.prefProgress}
-                        style={{ width: `${pref.weight * 100}%` }}
-                      />
-                    </div>
-                    <span className={styles.prefValue}>
-                      {(pref.weight * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                ))}
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>Hồ sơ du lịch của bạn</h2>
+              <p>Đây là cách Vivu đang hiểu phong cách và mối quan tâm của bạn.</p>
             </div>
-          )}
+            <Link to='/settings' className={styles.settingsLink}>Chỉnh sửa sở thích</Link>
+          </div>
+          <TravelProfileSummary preferences={preferences} />
         </div>
 
         <div className={styles.section}>

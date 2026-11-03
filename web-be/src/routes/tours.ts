@@ -5,6 +5,7 @@ import {
   deleteTourReview,
   getTours, 
   getTourById, 
+  getSimilarTours,
   getMyTourReview,
   getTourReviews, 
   getPopularTours,
@@ -28,6 +29,7 @@ router.put('/:id/reviews/:reviewId', authMiddleware, updateTourReview);
 router.delete('/:id/reviews/:reviewId', authMiddleware, deleteTourReview);
 router.put('/:id/reviews/:reviewId/reply', authMiddleware, adminMiddleware, upsertAdminReviewReply);
 router.delete('/:id/reviews/:reviewId/reply', authMiddleware, adminMiddleware, deleteAdminReviewReply);
+router.get('/:id/similar', getSimilarTours);
 router.get('/:id', getTourById);
 
 export { router as tourRouter };

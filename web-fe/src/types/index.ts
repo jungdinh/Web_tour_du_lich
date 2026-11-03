@@ -84,6 +84,23 @@ export interface Tag {
   weight: number
 }
 
+export interface PreferenceCatalogItem {
+  tag: string
+  label: string
+}
+
+export interface SettingsData {
+  account: {
+    email: string
+    email_verified: boolean
+    google_linked: boolean
+    has_password: boolean
+    auth_provider: 'local' | 'google' | 'both'
+  }
+  preferences: Tag[]
+  preference_catalog: PreferenceCatalogItem[]
+}
+
 export interface AdminReviewReply {
   id: number
   content: string
@@ -156,6 +173,9 @@ export interface AdminDashboard {
     favorites: number
     actions: number
     messages: number
+    bookings?: number
+    revenue?: number
+    paid_bookings?: number
   }
   top_destinations: Array<{ destination: string; count: number }>
   recent_users: Array<Pick<User, 'id' | 'name' | 'email' | 'role'> & { created_at: string }>
@@ -177,10 +197,52 @@ export interface AdminUser extends User {
   updated_at?: string
 }
 
+export type NotificationType = 'system' | 'promotion' | 'booking' | 'payment' | 'tour' | 'account'
+export type NotificationPriority = 'normal' | 'important' | 'urgent'
+
+export interface NotificationItem {
+  id: number
+  type: NotificationType
+  priority: NotificationPriority
+  title: string
+  body: string
+  action_url?: string | null
+  action_label?: string | null
+  published_at: string
+  read_at?: string | null
+  is_read: boolean
+}
+
+export interface CreateNotificationPayload {
+  type: NotificationType
+  priority: NotificationPriority
+  title: string
+  body: string
+  action_url?: string | null
+  action_label?: string | null
+  audience: 'all' | 'selected'
+  recipient_ids: number[]
+}
+
 export interface AdminUserDetail extends AdminUser {
   chat_session_count: number
   favorites: Array<{ id: number; name: string; destination: string; price: number; image_url?: string; favorited_at: string }>
   reviews: Array<{ id: number; tour_id: number; tour_name: string; rating: number; content: string; created_at: string }>
+}
+
+export interface AdminCustomerReview {
+  id: number
+  tour_id: number
+  tour_name: string
+  destination: string
+  user_id: number
+  user_name: string
+  user_email: string
+  rating: number
+  content: string
+  created_at: string
+  updated_at?: string
+  admin_reply: AdminReviewReply | null
 }
 
 export interface BookingPayment {
@@ -231,7 +293,7 @@ export interface Booking {
 }
 
 export interface AdminBooking extends Omit<Booking, 'payment_mode' | 'checkout' | 'qr_url' | 'bank'> {
-  user_id: number
+  user_id: number | null
   user_name: string
   user_email: string
 }

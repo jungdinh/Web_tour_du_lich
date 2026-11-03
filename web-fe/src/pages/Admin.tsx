@@ -1,18 +1,85 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import {
+  LayoutDashboard,
+  Compass,
+  CalendarCheck,
+  Users,
+  ExternalLink,
+  Plus,
+  List,
+  LayoutGrid,
+  Pencil,
+  Trash2,
+  Copy,
+  Check,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Zap,
+  Star,
+  Sparkles,
+  CreditCard,
+  X,
+  CheckSquare,
+  Search as SearchIcon,
+  BellRing,
+  MessageSquareText,
+} from 'lucide-react'
 import { adminApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminBooking, AdminBookingDetail, AdminDashboard, AdminUser, AdminUserDetail, Booking, PaginatedResponse, Tour } from '@/types'
+import { Dropdown } from '@/components/Dropdown'
+import { AdminNotificationsPanel } from '@/components/AdminNotificationsPanel'
+import { AdminReviewsPanel } from '@/components/AdminReviewsPanel'
 import styles from './Admin.module.css'
 import { getFutureScheduleRows, getNextAvailableScheduleDate, getTomorrowIsoDate, isFutureScheduleDate, normalizeScheduleDate } from '@/utils/schedule'
 
-type AdminTab = 'overview' | 'tours' | 'users' | 'bookings'
+type AdminTab = 'overview' | 'tours' | 'users' | 'bookings' | 'reviews' | 'notifications'
 type TourFilters = { destination: string; travelType: 'all' | 'domestic' | 'international'; minPrice: string; maxPrice: string; duration: string }
-type TourForm = Pick<Tour, 'name' | 'destination' | 'price' | 'duration' | 'description' | 'image_url' | 'season' | 'duration_label' | 'original_price' | 'highlights' | 'places' | 'topics' | 'itinerary' | 'included' | 'excluded' | 'schedule' | 'transport'>
+type TourForm = Pick<Tour, 'name' | 'destination' | 'price' | 'duration' | 'description' | 'image_url' | 'season' | 'duration_label' | 'original_price' | 'highlights' | 'places' | 'topics' | 'tags' | 'itinerary' | 'included' | 'excluded' | 'schedule' | 'transport'>
 
 const MAX_TOUR_GALLERY_IMAGES = 60
+const tourTagCatalog = [
+  { tag: 'family', label: 'Gia đình' },
+  { tag: 'romantic', label: 'Cặp đôi' },
+  { tag: 'adventure', label: 'Khám phá, mạo hiểm' },
+  { tag: 'relax', label: 'Nghỉ dưỡng' },
+  { tag: 'spiritual', label: 'Tâm linh' },
+  { tag: 'beach', label: 'Biển, đảo' },
+  { tag: 'mountain', label: 'Núi, cao nguyên' },
+  { tag: 'nature', label: 'Thiên nhiên' },
+  { tag: 'city', label: 'Thành phố' },
+  { tag: 'culture', label: 'Văn hóa' },
+  { tag: 'history', label: 'Lịch sử' },
+  { tag: 'festival', label: 'Lễ hội' },
+  { tag: 'photography', label: 'Chụp ảnh, check-in' },
+  { tag: 'wildlife', label: 'Động vật hoang dã' },
+  { tag: 'cruise', label: 'Du thuyền' },
+  { tag: 'nightlife', label: 'Trải nghiệm về đêm' },
+  { tag: 'water_sports', label: 'Thể thao dưới nước' },
+  { tag: 'food', label: 'Ẩm thực' },
+  { tag: 'shopping', label: 'Mua sắm' },
+  { tag: 'budget', label: 'Tiết kiệm' },
+  { tag: 'luxury', label: 'Cao cấp' },
+] as const
 
-const tabLabels: Record<AdminTab, string> = { overview: 'T\u1ed5ng quan', tours: 'Qu\u1ea3n l\u00fd tour', users: 'Ng\u01b0\u1eddi d\u00f9ng', bookings: '\u0110\u1eb7t tour' }
+const tabLabels: Record<AdminTab, string> = { overview: 'T\u1ed5ng quan', tours: 'Qu\u1ea3n l\u00fd tour', users: 'Ng\u01b0\u1eddi d\u00f9ng', bookings: '\u0110\u1eb7t tour', reviews: 'B\u00ecnh lu\u1eadn', notifications: 'Th\u00f4ng b\u00e1o' }
+const adminTabPaths: Record<AdminTab, string> = {
+  overview: '/admin/dashboard',
+  tours: '/admin/tours',
+  bookings: '/admin/bookings',
+  users: '/admin/users',
+  reviews: '/admin/reviews',
+  notifications: '/admin/notifications',
+}
+
+const getAdminTabFromPath = (pathname: string): AdminTab | null => {
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/'
+  const match = (Object.entries(adminTabPaths) as Array<[AdminTab, string]>).find(([, path]) => path === normalizedPath)
+  return match?.[0] || null
+}
 
 const bookingStatusLabels: Record<Booking['status'], string> = {
   pending_payment: 'Ch\u1edd thanh to\u00e1n',
@@ -43,6 +110,7 @@ const emptyTour: TourForm = {
   highlights: [],
   places: [],
   topics: [],
+  tags: [],
   itinerary: [],
   included: [],
   excluded: [],
@@ -148,7 +216,10 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
 }
 export function AdminPage() {
   const { user } = useAuthStore()
-  const [tab, setTab] = useState<AdminTab>('overview')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const matchedTab = getAdminTabFromPath(location.pathname)
+  const tab = matchedTab || 'overview'
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null)
   const [tours, setTours] = useState<PaginatedResponse<Tour> | null>(null)
   const [users, setUsers] = useState<PaginatedResponse<AdminUser> | null>(null)
@@ -168,16 +239,91 @@ export function AdminPage() {
   const [bookingDetail, setBookingDetail] = useState<AdminBookingDetail | null>(null)
   const [userAction, setUserAction] = useState<{ kind: 'delete' | 'role' | 'status'; target: AdminUser; role?: 'user' | 'admin'; is_active?: boolean } | null>(null)
   const [userActionLoading, setUserActionLoading] = useState(false)
+  const [passwordTarget, setPasswordTarget] = useState<AdminUser | null>(null)
+  const [newUserPassword, setNewUserPassword] = useState('')
+  const [confirmUserPassword, setConfirmUserPassword] = useState('')
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false)
+  const [showConfirmUserPassword, setShowConfirmUserPassword] = useState(false)
+  const [passwordActionLoading, setPasswordActionLoading] = useState(false)
+  const [passwordActionError, setPasswordActionError] = useState('')
   const [editingTour, setEditingTour] = useState<Tour | null>(null)
   const [deletingTour, setDeletingTour] = useState<Tour | null>(null)
+  const [selectedTours, setSelectedTours] = useState<number[]>([])
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [tourViewMode, setTourViewMode] = useState<'table' | 'grid'>('table')
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [tourFormOpen, setTourFormOpen] = useState(false)
   const [tourForm, setTourForm] = useState<TourForm>(emptyTour)
   const [tourImages, setTourImages] = useState<Array<{ file?: File; url: string }>>([])
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+
+  const userPasswordRequirements = [
+    { label: 'Từ 12 đến 24 ký tự', met: newUserPassword.length >= 12 && newUserPassword.length <= 24 },
+    { label: 'Có ít nhất một chữ hoa (A-Z)', met: /[A-Z]/.test(newUserPassword) },
+    { label: 'Có ít nhất một chữ số (0-9)', met: /\d/.test(newUserPassword) },
+    { label: 'Có ít nhất một ký tự đặc biệt', met: /[^A-Za-z0-9]/.test(newUserPassword) },
+  ]
+  const userPasswordReady = userPasswordRequirements.every((requirement) => requirement.met)
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedCode(code)
+      setTimeout(() => setCopiedCode(null), 2000)
+    } catch {
+      // fallback
+    }
+  }
+
+  const exportBookingsToCSV = () => {
+    if (!bookings?.data.length) return
+    const headers = [
+      'Mã đơn',
+      'Mã thanh toán',
+      'Tên khách',
+      'Email khách',
+      'Số ĐT',
+      'Tên tour',
+      'Điểm đến',
+      'Ngày khởi hành',
+      'Số khách',
+      'Tổng tiền (VNĐ)',
+      'Trạng thái đơn',
+      'Trạng thái thanh toán',
+      'Ngày tạo',
+    ]
+    const rows = bookings.data.map((b) => [
+      `"${b.booking_code}"`,
+      `"${b.payment_code || ''}"`,
+      `"${(b.user_name || b.contact_name || '').replace(/"/g, '""')}"`,
+      `"${b.user_email || b.contact_email || ''}"`,
+      `"${b.contact_phone || ''}"`,
+      `"${(b.tour_name || '').replace(/"/g, '""')}"`,
+      `"${(b.destination || '').replace(/"/g, '""')}"`,
+      `"${b.departure_date ? b.departure_date.split('T')[0] : ''}"`,
+      b.guest_count,
+      b.total_amount,
+      `"${bookingStatusLabels[b.status] || b.status}"`,
+      `"${paymentStatusLabels[b.payment_status] || b.payment_status}"`,
+      `"${b.created_at ? new Date(b.created_at).toLocaleString('vi-VN') : ''}"`,
+    ])
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `danh-sach-don-tour-${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    setNotice('Đã xuất danh sách đơn đặt tour ra file CSV.')
+  }
 
   const loadDashboard = async () => {
     const data = await adminApi.getDashboard()
@@ -203,15 +349,12 @@ export function AdminPage() {
   }
 
   const refresh = async (target = tab) => {
-    setLoading(true)
     setError('')
     try {
       if (target === 'overview') await loadDashboard()
       else await loadTab(target)
     } catch (err) {
       setError(getErrorMessage(err))
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -220,13 +363,24 @@ export function AdminPage() {
   }, [user?.role])
 
   useEffect(() => {
-    if (user?.role === 'admin' && tab !== 'overview') void refresh(tab)
+    if (user?.role === 'admin' && tab !== 'overview' && tab !== 'notifications' && tab !== 'reviews') void refresh(tab)
   }, [tab, submittedSearch, submittedTourFilters, tourPage, userPage, bookingPage, bookingStatusFilter, bookingPaymentFilter, userRoleFilter, userStatusFilter, user?.role])
 
+  useEffect(() => {
+    if (notice || error) {
+      const timer = setTimeout(() => {
+        setNotice('')
+        setError('')
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [notice, error])
+
   if (!user || user.role !== 'admin') return <Navigate to="/" replace />
+  if (!matchedTab) return <Navigate to={adminTabPaths.overview} replace />
 
   const selectTab = (next: AdminTab) => {
-    setTab(next)
+    navigate(adminTabPaths[next])
     setError('')
     setNotice('')
   }
@@ -286,6 +440,7 @@ export function AdminPage() {
        highlights: tour.highlights || [],
        places: tour.places || [],
        topics: tour.topics || [],
+       tags: tour.tags || [],
        itinerary: tour.itinerary || [],
        included: tour.included || [],
        excluded: tour.excluded || [],
@@ -361,6 +516,24 @@ export function AdminPage() {
     setTourForm((current) => ({ ...current, schedule: (current.schedule || []).filter((_, rowIndex) => rowIndex !== index) }))
   }
 
+  const toggleTourTag = (tag: string) => {
+    setTourForm((current) => {
+      const tags = current.tags || []
+      const selected = tags.some((item) => item.tag === tag)
+      return {
+        ...current,
+        tags: selected ? tags.filter((item) => item.tag !== tag) : [...tags, { tag, weight: 0.8 }],
+      }
+    })
+  }
+
+  const updateTourTagWeight = (tag: string, weight: number) => {
+    setTourForm((current) => ({
+      ...current,
+      tags: (current.tags || []).map((item) => item.tag === tag ? { ...item, weight } : item),
+    }))
+  }
+
   const saveTour = async (event: React.FormEvent) => {
     event.preventDefault()
     setSaving(true)
@@ -377,6 +550,7 @@ export function AdminPage() {
        const uploadedUrls = await Promise.all(tourImages.map((image) => image.file ? adminApi.uploadTourImage(image.file) : Promise.resolve(image.url)))
        const gallery = uploadedUrls.filter(Boolean)
        if (!gallery.length) throw new Error('Vui lòng chọn ít nhất một ảnh gallery.')
+       if (!tourForm.tags?.length) throw new Error('Vui lòng chọn ít nhất một hashtag AI cho tour.')
        const payload = {
          ...tourForm,
          schedule: getFutureScheduleRows(scheduleRows),
@@ -406,6 +580,34 @@ export function AdminPage() {
   const deleteTour = (tour: Tour) => {
     setDeletingTour(tour)
     setError('')
+  }
+
+  const toggleSelectTour = (id: number) => {
+    setSelectedTours(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id])
+  }
+
+  const toggleSelectAllTours = () => {
+    if (!tours) return
+    if (selectedTours.length === tours.data.length) setSelectedTours([])
+    else setSelectedTours(tours.data.map(t => t.id))
+  }
+
+  const confirmBulkDeleteTours = async () => {
+    if (!selectedTours.length) return
+    setDeleting(true)
+    setError('')
+    try {
+      await adminApi.bulkDeleteTours(selectedTours)
+      setNotice(`Đã xóa ${selectedTours.length} tour.`)
+      setSelectedTours([])
+      setBulkDeleting(false)
+      await loadTab('tours')
+      await loadDashboard()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi xóa nhiều tour')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const confirmDeleteTour = async () => {
@@ -439,6 +641,51 @@ export function AdminPage() {
     setUserAction({ kind: 'delete', target })
   }
 
+  const openPasswordDialog = (target: AdminUser) => {
+    setPasswordTarget(target)
+    setNewUserPassword('')
+    setConfirmUserPassword('')
+    setShowNewUserPassword(false)
+    setShowConfirmUserPassword(false)
+    setPasswordActionError('')
+  }
+
+  const closePasswordDialog = () => {
+    if (passwordActionLoading) return
+    setPasswordTarget(null)
+    setNewUserPassword('')
+    setConfirmUserPassword('')
+    setPasswordActionError('')
+  }
+
+  const updateUserPassword = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!passwordTarget) return
+    if (!userPasswordReady) {
+      setPasswordActionError('Mật khẩu mới chưa đáp ứng đầy đủ yêu cầu bảo mật.')
+      return
+    }
+    if (newUserPassword !== confirmUserPassword) {
+      setPasswordActionError('Mật khẩu xác nhận không khớp.')
+      return
+    }
+
+    setPasswordActionLoading(true)
+    setPasswordActionError('')
+    try {
+      await adminApi.updateUserPassword(passwordTarget.id, newUserPassword)
+      setNotice(`Đã cập nhật mật khẩu cho ${passwordTarget.email}.`)
+      setPasswordTarget(null)
+      setNewUserPassword('')
+      setConfirmUserPassword('')
+      await loadTab('users')
+    } catch (err) {
+      setPasswordActionError(getErrorMessage(err))
+    } finally {
+      setPasswordActionLoading(false)
+    }
+  }
+
   const confirmUserAction = async () => {
     if (!userAction) return
     setUserActionLoading(true)
@@ -450,7 +697,7 @@ export function AdminPage() {
       setUserAction(null)
       setNotice(userAction.kind === 'delete' ? 'Đã xóa tài khoản.' : 'Đã cập nhật tài khoản.')
       await loadTab('users')
-      if (userDetail?.id === userAction.target.id) setUserDetail(await adminApi.getUserDetail(userAction.target.id))
+      if (userDetail?.id === userAction.target.id) setUserDetail(null)
       await loadDashboard()
     } catch (err) {
       setError(getErrorMessage(err))
@@ -480,52 +727,174 @@ export function AdminPage() {
   return (
     <div className={styles.page}>
       <aside className={styles.sidebar}>
-        <div className={styles.brand}><span className={styles.brandMark}>T</span><div><strong>TourAI</strong><small>Admin console</small></div></div>
-        <div className={styles.sidebarLabel}>QUAN LY WEBSITE</div>
+        <div className={styles.brand}><span className={styles.brandMark}>V</span><div><strong>Vivu</strong><small>Admin console</small></div></div>
+        <div className={styles.sidebarLabel}>QUẢN TRỊ VIÊN</div>
         <nav className={styles.sidebarNav} aria-label="Admin navigation">
-          {([['overview', tabLabels.overview, '01'], ['tours', tabLabels.tours, '02'], ['bookings', tabLabels.bookings, '03'], ['users', tabLabels.users, '04']] as Array<[AdminTab, string, string]>).map(([key, label, icon]) => (
-            <button key={key} type="button" className={tab === key ? styles.navItemActive : styles.navItem} onClick={() => selectTab(key)}>
+          {([
+            ['overview', tabLabels.overview, <LayoutDashboard size={18} key="overview" />],
+            ['tours', tabLabels.tours, <Compass size={18} key="tours" />],
+            ['bookings', tabLabels.bookings, <CalendarCheck size={18} key="bookings" />],
+            ['users', tabLabels.users, <Users size={18} key="users" />],
+            ['reviews', tabLabels.reviews, <MessageSquareText size={18} key='reviews' />],
+            ['notifications', tabLabels.notifications, <BellRing size={18} key='notifications' />],
+          ] as Array<[AdminTab, string, React.ReactNode]>).map(([key, label, icon]) => (
+            <NavLink key={key} to={adminTabPaths[key]} className={tab === key ? styles.navItemActive : styles.navItem} onClick={() => { setError(''); setNotice('') }}>
               <span className={styles.navIcon}>{icon}</span><span>{label}</span>
-            </button>
+            </NavLink>
           ))}
         </nav>
+        <div className={styles.sidebarWebsiteWrap}>
+          <a href="/" target="_blank" rel="noopener noreferrer" className={styles.sidebarWebsiteLink} title="Xem website ở tab mới">
+            <ExternalLink size={15} />
+            <span>Xem Website</span>
+          </a>
+        </div>
         <div className={styles.sidebarFooter}><small>Dang dang nhap</small><strong>{user.name}</strong><span>{user.email}</span></div>
       </aside>
 
       <main className={styles.workspace}>
-        <header className={styles.topbar}><div><span className={styles.breadcrumb}>Admin / {tabLabels[tab]}</span><h1>{'Qu\u1ea3n tr\u1ecb website'}</h1></div><button className={styles.refreshButton} type="button" onClick={() => void refresh()} disabled={loading}>{loading ? 'Dang tai...' : 'Lam moi du lieu'}</button></header>
-        <section className={styles.hero}><div><p className={styles.eyebrow}>TOURAI CONTROL CENTER</p><p className={styles.subtitle}>{'Theo d\u00f5i d\u1eef li\u1ec7u v\u00e0 \u0111i\u1ec1u h\u00e0nh n\u1ed9i dung tour trong m\u1ed9t n\u01a1i.'}</p></div></section>
+        <header className={styles.topbar}><div><span className={styles.breadcrumb}>Admin / {tabLabels[tab]}</span><h1>{'Qu\u1ea3n tr\u1ecb website'}</h1></div></header>
+
         {notice && <div className={styles.notice}>{notice}</div>}
         {error && <div className={styles.error}>{error}</div>}
 
 
       {tab === 'overview' && dashboard && (
         <section className={styles.content}>
+
           <div className={styles.statGrid}>
-            {[
-              ['Tour', dashboard.counts.tours, 'Nội dung đang hiển thị'],
-              ['Người dùng', dashboard.counts.users, 'Tài khoản trong hệ thống'],
-              ['Đánh giá', dashboard.counts.reviews, 'Phản hồi từ khách'],
-              ['Lượt yêu thích', dashboard.counts.favorites, 'Tín hiệu quan tâm'],
-              ['Tương tác', dashboard.counts.actions, 'Click, save, search'],
-              ['Tin nhắn AI', dashboard.counts.messages, 'Lịch sử tư vấn'],
-            ].map(([label, value, hint]) => (
-              <article className={styles.statCard} key={label as string}>
-                <span>{label}</span><strong>{value}</strong><small>{hint}</small>
-              </article>
-            ))}
+            <article className={`${styles.statCard} ${styles.statCardHighlight}`}>
+              <div className={styles.statCardHeader}>
+                <span>Tổng doanh thu</span>
+                <span className={styles.statIconBadge}><CreditCard size={18} /></span>
+              </div>
+              <strong className={styles.statRevenue}>{formatPrice(dashboard.counts.revenue || 0)}</strong>
+              <small>Thanh toán thành công qua cổng</small>
+            </article>
+
+            <article className={styles.statCard}>
+              <div className={styles.statCardHeader}>
+                <span>Đơn đặt tour</span>
+                <span className={styles.statIconBadge}><CalendarCheck size={18} /></span>
+              </div>
+              <strong>{dashboard.counts.bookings || 0}</strong>
+              <small>{dashboard.counts.paid_bookings || 0} đơn đã thanh toán</small>
+            </article>
+
+            <article className={styles.statCard}>
+              <div className={styles.statCardHeader}>
+                <span>Tour hiển thị</span>
+                <span className={styles.statIconBadge}><Compass size={18} /></span>
+              </div>
+              <strong>{dashboard.counts.tours}</strong>
+              <small>Tour du lịch đang mở bán</small>
+            </article>
+
+            <article className={styles.statCard}>
+              <div className={styles.statCardHeader}>
+                <span>Người dùng</span>
+                <span className={styles.statIconBadge}><Users size={18} /></span>
+              </div>
+              <strong>{dashboard.counts.users}</strong>
+              <small>Tài khoản trên hệ thống</small>
+            </article>
+
+            <article className={styles.statCard}>
+              <div className={styles.statCardHeader}>
+                <span>Tư vấn AI</span>
+                <span className={styles.statIconBadge}><Sparkles size={18} /></span>
+              </div>
+              <strong>{dashboard.counts.messages}</strong>
+              <small>Tin nhắn hỏi đáp & gợi ý</small>
+            </article>
+
+            <article className={styles.statCard}>
+              <div className={styles.statCardHeader}>
+                <span>Tương tác & Đánh giá</span>
+                <span className={styles.statIconBadge}><Zap size={18} /></span>
+              </div>
+              <strong>{dashboard.counts.actions + dashboard.counts.favorites}</strong>
+              <small>{dashboard.counts.reviews} đánh giá từ khách</small>
+            </article>
           </div>
+
           <div className={styles.twoColumns}>
-            <section className={styles.panel}><div className={styles.panelHeader}><h2>Điểm đến nhiều tour</h2><span>Top 6</span></div><div className={styles.destinationList}>{dashboard.top_destinations.map((item) => <div className={styles.destinationRow} key={item.destination}><span>{item.destination}</span><strong>{item.count}</strong></div>)}</div></section>
-            <section className={styles.panel}><div className={styles.panelHeader}><h2>Tài khoản mới</h2><span>Gần đây</span></div><div className={styles.activityList}>{dashboard.recent_users.map((item) => <div className={styles.activityRow} key={item.id}><div><strong>{item.name}</strong><span>{item.email}</span></div><small>{formatDate(item.created_at)}</small></div>)}</div></section>
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Điểm đến & Bộ sưu tập nổi bật</h2>
+                  <span>Phân bổ số lượng tour theo danh mục</span>
+                </div>
+                <span className={styles.panelBadge}>Top 6</span>
+              </div>
+              <div className={styles.destinationList}>
+                {dashboard.top_destinations.map((item) => (
+                  <div className={styles.destinationRow} key={item.destination}>
+                    <span className={styles.destTitle}>{item.destination}</span>
+                    <strong className={styles.destCount}>{item.count} tour</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Tài khoản mới đăng ký</h2>
+                  <span>Người dùng gia nhập gần đây</span>
+                </div>
+                <button type="button" className={styles.ghostLink} onClick={() => selectTab('users')}>
+                  Xem tất cả
+                </button>
+              </div>
+              <div className={styles.activityList}>
+                {dashboard.recent_users.map((item) => (
+                  <div className={styles.recentUserRow} key={item.id}>
+                    <div className={styles.userAvatar}>
+                      {item.name ? item.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <div className={styles.recentUserInfo}>
+                      <div className={styles.recentUserNameRow}>
+                        <strong>{item.name}</strong>
+                        <span className={item.role === 'admin' ? styles.roleBadgeAdmin : styles.roleBadgeUser}>
+                          {item.role === 'admin' ? 'Admin' : 'Thành viên'}
+                        </span>
+                      </div>
+                      <span>{item.email}</span>
+                    </div>
+                    <small className={styles.userCreatedDate}>{formatDate(item.created_at)}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         </section>
       )}
 
-      {tab !== 'overview' && (
+      {tab === 'notifications' ? <section className={styles.content}><AdminNotificationsPanel /></section> : null}
+      {tab === 'reviews' ? <section className={styles.content}><AdminReviewsPanel /></section> : null}
+
+      {tab !== 'overview' && tab !== 'notifications' && tab !== 'reviews' && (tab !== 'tours' || !tourFormOpen) && (
         <section className={styles.content}>
           <div className={styles.toolbar}>
-            <form onSubmit={submitSearch} className={styles.searchForm}><input aria-label="Tìm trong dữ liệu quản trị" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === 'tours' ? 'Tìm tên tour hoặc điểm đến' : tab === 'bookings' ? 'Tìm mã đơn, khách hàng hoặc tour' : 'Tìm tên, email hoặc nội dung'} /><button type="submit">Tìm kiếm</button></form>
+            <form onSubmit={submitSearch} className={styles.searchForm}>
+              <SearchIcon className={styles.searchIcon} size={18} />
+              <input aria-label="Tìm trong dữ liệu quản trị" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === 'tours' ? 'Tìm tên tour hoặc điểm đến' : tab === 'bookings' ? 'Tìm mã đơn, khách hàng hoặc tour' : 'Tìm tên, email hoặc nội dung'} />
+            </form>
+            <div className={styles.globalFilters}>
+              {tab === 'users' && (
+                <>
+                  <Dropdown className={styles.headerSelect} value={userRoleFilter} onChange={(val) => { setUserPage(1); setUserRoleFilter(val as 'all' | 'user' | 'admin') }} options={[{value: 'all', label: 'Tất cả quyền'}, {value: 'user', label: 'Người dùng'}, {value: 'admin', label: 'Quản trị viên'}]} />
+                  <Dropdown className={styles.headerSelect} value={userStatusFilter} onChange={(val) => { setUserPage(1); setUserStatusFilter(val as 'all' | 'active' | 'inactive') }} options={[{value: 'all', label: 'Tất cả trạng thái'}, {value: 'active', label: 'Đang hoạt động'}, {value: 'inactive', label: 'Đã khóa'}]} />
+                </>
+              )}
+              {tab === 'bookings' && (
+                <>
+                  <Dropdown className={styles.headerSelect} value={bookingStatusFilter} onChange={(val) => { setBookingPage(1); setBookingStatusFilter(val as 'all' | Booking['status']) }} options={[ {value: 'all', label: 'Tất cả trạng thái đơn'}, ...Object.entries(bookingStatusLabels).map(([val, label]) => ({value: val, label})) ]} />
+                  <Dropdown className={styles.headerSelect} value={bookingPaymentFilter} onChange={(val) => { setBookingPage(1); setBookingPaymentFilter(val as 'all' | Booking['payment_status']) }} options={[ {value: 'all', label: 'Tất cả thanh toán'}, ...Object.entries(paymentStatusLabels).map(([val, label]) => ({value: val, label})) ]} />
+                </>
+              )}
+            </div>
           </div>
 
           
@@ -537,142 +906,352 @@ export function AdminPage() {
              <button className={styles.filterButton} type="submit">Lọc tour</button>
            </form>}
 
-{tab === 'tours' && <div className={styles.tourListPanel}>
+{tab === 'tours' && (
+          <div className={styles.tourListPanel}>
             <div className={styles.listHeader}>
-              <div><h2>Danh sách tour</h2><span>{tours?.pagination.total || 0} tour trong hệ thống</span></div>
-              <button className={styles.primaryButton} type="button" onClick={startCreate}>+ Thêm tour</button>
-            </div>
-            <div className={styles.tourCards}>
-              {tours?.data.map((tour) => <article className={styles.tourCard} key={tour.id} tabIndex={0}>
-                <div className={styles.tourCardImage}>{tour.image_url ? <img src={tour.image_url} alt={tour.name} /> : <div className={styles.tourPlaceholder}>T</div>}
-                  <div className={styles.tourCardActions}>
-                    <button type="button" className={styles.cardActionEdit} onClick={() => startEdit(tour)} aria-label={`Sửa ${tour.name}`} />
-                    <button type="button" className={styles.cardActionDelete} onClick={() => void deleteTour(tour)} aria-label={`Xóa ${tour.name}`} />
-                  </div>
+              <div>
+                <h2>Danh sách tour</h2>
+                <span>{tours?.pagination.total || 0} tour trong hệ thống</span>
+              </div>
+              <div className={styles.tourHeaderControls}>
+                <div className={styles.viewToggleGroup}>
+                  <button
+                    type="button"
+                    className={tourViewMode === 'table' ? styles.viewToggleActive : styles.viewToggle}
+                    onClick={() => setTourViewMode('table')}
+                    title="Chuyển sang dạng Bảng quản trị"
+                  >
+                    <List size={16} /> <span>Bảng</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={tourViewMode === 'grid' ? styles.viewToggleActive : styles.viewToggle}
+                    onClick={() => setTourViewMode('grid')}
+                    title="Chuyển sang dạng Lưới hình ảnh"
+                  >
+                    <LayoutGrid size={16} /> <span>Lưới</span>
+                  </button>
                 </div>
-                <div className={styles.tourCardBody}>
-                  <div className={styles.tourCardMeta}><span>{tour.destination}</span></div>
-                  <h3>{tour.name}</h3>
-                  <div className={styles.tourCardFooter}><strong>{formatPrice(tour.price)}</strong><span>{tour.duration} ngày</span></div>
-                </div>
-              </article>)}
-              {!tours?.data.length && <div className={styles.emptyState}>Chưa có tour nào phù hợp.</div>}
+
+                <button
+                  className={styles.secondaryButton}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  type="button"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) setSelectedTours([]);
+                  }}
+                >
+                  {selectionMode ? (
+                    <><X size={16} /> Hủy chọn</>
+                  ) : (
+                    <><CheckSquare size={16} /> Chọn nhiều</>
+                  )}
+                </button>
+                <button
+                  className={styles.primaryButton}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  type="button"
+                  onClick={startCreate}
+                >
+                  <Plus size={16} /> Thêm tour
+                </button>
+              </div>
             </div>
-          </div>}
+
+            {tourViewMode === 'table' ? (
+              <div className={styles.tableWrap}>
+                <table className={styles.adminTourTable}>
+                  <thead>
+                    <tr>
+                      {selectionMode && (
+                        <th style={{ width: 44, textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(tours?.data.length && selectedTours.length === tours.data.length)}
+                            onChange={toggleSelectAllTours}
+                            aria-label="Chọn tất cả tour trên trang"
+                          />
+                        </th>
+                      )}
+                      <th>Tour du lịch</th>
+                      <th>Điểm đến</th>
+                      <th>Thời lượng</th>
+                      <th>Giá niêm yết</th>
+                      <th>Lịch khởi hành</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tours?.data.map((tour) => {
+                      const isSelected = selectedTours.includes(tour.id);
+                      const futureSchedules = getFutureScheduleRows(tour.schedule);
+                      return (
+                        <tr key={tour.id} className={isSelected ? styles.selectedRow : undefined}>
+                          {selectionMode && (
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectTour(tour.id)}
+                                aria-label={`Chọn ${tour.name}`}
+                              />
+                            </td>
+                          )}
+                          <td>
+                            <div className={styles.tableTourCell}>
+                              <div className={styles.tableTourThumb}>
+                                {tour.image_url ? (
+                                  <img src={tour.image_url} alt={tour.name} loading="lazy" />
+                                ) : (
+                                  <div className={styles.tourPlaceholder}>T</div>
+                                )}
+                              </div>
+                              <div className={styles.tableTourMeta}>
+                                <strong className={styles.tableTourName} title={tour.name}>{tour.name}</strong>
+                                <div className={styles.tableTourBadges}>
+                                  <span className={styles.tourIdBadge}>#{tour.id}</span>
+                                  {tour.season && <span className={styles.seasonBadge}>{tour.season}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className={styles.destCell}>
+                              <strong>{tour.destination}</strong>
+                            </div>
+                          </td>
+                          <td>
+                            <div className={styles.durationCell}>
+                              <strong>{tour.duration} ngày</strong>
+                              {tour.duration_label && <small>{tour.duration_label}</small>}
+                            </div>
+                          </td>
+                          <td>
+                            <div className={styles.priceCell}>
+                              <strong className={styles.currentPrice}>{formatPrice(tour.price)}</strong>
+                              {tour.original_price && tour.original_price > tour.price ? (
+                                <del className={styles.origPrice}>{formatPrice(tour.original_price)}</del>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={futureSchedules.length > 0 ? styles.scheduleBadgeActive : styles.scheduleBadgeEmpty}>
+                              {futureSchedules.length > 0 ? `${futureSchedules.length} ngày mở bán` : 'Chưa có lịch'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.tableRowActions}>
+                              <a href={`/tours/${tour.id}`} target="_blank" rel="noopener noreferrer" className={styles.actionIconBtn} title="Xem trên website">
+                                <ExternalLink size={15} />
+                              </a>
+                              <button type="button" className={styles.actionIconBtn} onClick={() => startEdit(tour)} title="Sửa tour">
+                                <Pencil size={15} />
+                              </button>
+                              <button type="button" className={`${styles.actionIconBtn} ${styles.actionIconDanger}`} onClick={() => void deleteTour(tour)} title="Xóa tour">
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className={styles.tourCards}>
+                {tours?.data.map((tour) => (
+                  <article className={styles.tourCard} key={tour.id} tabIndex={0} onClick={() => { if (selectionMode) toggleSelectTour(tour.id); }} style={{ cursor: selectionMode ? 'pointer' : undefined }}>
+                    {selectionMode && <label className={styles.tourSelectCheckbox}><input type="checkbox" checked={selectedTours.includes(tour.id)} readOnly /></label>}
+                    <div className={styles.tourCardImage}>
+                      {tour.image_url ? <img src={tour.image_url} alt={tour.name} /> : <div className={styles.tourPlaceholder}>T</div>}
+                      {!selectionMode && (
+                        <div className={styles.tourCardActions}>
+                          <a href={`/tours/${tour.id}`} target="_blank" rel="noopener noreferrer" className={styles.cardActionIcon} title="Xem trên web">
+                            <ExternalLink size={14} />
+                          </a>
+                          <button type="button" className={styles.cardActionIcon} onClick={() => startEdit(tour)} aria-label={`Sửa ${tour.name}`} title="Sửa tour">
+                            <Pencil size={14} />
+                          </button>
+                          <button type="button" className={`${styles.cardActionIcon} ${styles.cardActionDanger}`} onClick={() => void deleteTour(tour)} aria-label={`Xóa ${tour.name}`} title="Xóa tour">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.tourCardBody}>
+                      <div className={styles.tourCardMeta}><span>{tour.destination}</span></div>
+                      <h3>{tour.name}</h3>
+                      <div className={styles.tourCardFooter}><strong>{formatPrice(tour.price)}</strong><span>{tour.duration} ngày</span></div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+            {!tours?.data.length && <div className={styles.emptyState}>Chưa có tour nào phù hợp với bộ lọc.</div>}
+          </div>
+        )}
 
           
            {tab === 'tours' && tours && tours.pagination.totalPages > 1 && <div className={styles.pagination}>
-             <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage - 1)} disabled={tourPage <= 1} aria-label="Trang tr??c">&#8592;</button>
+             <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage - 1)} disabled={tourPage <= 1} aria-label="Trang trước"><ChevronLeft size={16} /></button>
              <label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={tours.pagination.totalPages} value={tourPage} aria-label="Nh?p s? trang" onChange={(event) => { const page = Number(event.target.value); if (page >= 1) changeTourPage(page) }} /><span>/ {tours.pagination.totalPages}</span></label>
-             <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage + 1)} disabled={tourPage >= tours.pagination.totalPages} aria-label="Trang sau">&#8594;</button>
+             <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage + 1)} disabled={tourPage >= tours.pagination.totalPages} aria-label="Trang sau"><ChevronRight size={16} /></button>
            </div>}
+
+
+           {selectedTours.length > 0 && <div className={styles.bulkActionBar}>
+              <span>Đã chọn <strong>{selectedTours.length}</strong> tour</span>
+              <button type="button" className={styles.ghostButton} onClick={toggleSelectAllTours}>{selectedTours.length === tours?.data.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả trên trang'}</button>
+              <div style={{ flex: 1 }}></div>
+              <button type="button" className={styles.secondaryButton} onClick={() => setSelectedTours([])}>Hủy</button>
+              <button type="button" className={styles.dangerButton} onClick={() => setBulkDeleting(true)}>Xóa đã chọn</button>
+            </div>}
+
+            {bulkDeleting && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setBulkDeleting(false) }}>
+              <section className={`${styles.confirmModal} ${styles.centeredModal}`} role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title">
+                <div className={styles.centeredIcon} aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </div>
+                <div className={styles.centeredContent}>
+                  <h2 id="bulk-delete-title">Xóa {selectedTours.length} tour?</h2>
+                  <p>Bạn có chắc muốn xóa <strong>{selectedTours.length} tour đã chọn</strong>? Hành động này không thể hoàn tác.</p>
+                </div>
+                <div className={styles.centeredActions}>
+                  <button type="button" className={styles.secondaryButton} onClick={() => setBulkDeleting(false)} disabled={deleting}>Hủy</button>
+                  <button type="button" className={styles.dangerButton} onClick={() => void confirmBulkDeleteTours()} disabled={deleting}>{deleting ? 'Đang xóa...' : `Xóa ${selectedTours.length} tour`}</button>
+                </div>
+              </section>
+            </div>}
 
 
            {deletingTour && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setDeletingTour(null) }}>
-             <section className={styles.confirmModal} role="dialog" aria-modal="true" aria-labelledby="delete-tour-title">
-               <div className={styles.confirmIcon} aria-hidden="true">!</div>
-               <div className={styles.confirmContent}><span className={styles.modalEyebrow}>XÁC NHẬN XÓA</span><h2 id="delete-tour-title">Xóa tour này?</h2><p>Bạn có chắc muốn xóa <strong>{deletingTour.name}</strong>? Dữ liệu tour sẽ bị xóa khỏi hệ thống.</p></div>
-               <div className={styles.confirmActions}><button type="button" className={styles.secondaryButton} onClick={() => setDeletingTour(null)} disabled={deleting}>Hủy</button><button type="button" className={styles.dangerButton} onClick={() => void confirmDeleteTour()} disabled={deleting}>{deleting ? 'Đang xóa...' : 'Xóa tour'}</button></div>
-             </section>
+              <section className={`${styles.confirmModal} ${styles.centeredModal}`} role="dialog" aria-modal="true" aria-labelledby="delete-tour-title">
+                <div className={styles.centeredIcon} aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </div>
+                <div className={styles.centeredContent}>
+                  <h2 id="delete-tour-title">Xóa tour này?</h2>
+                  <p>Bạn có chắc muốn xóa <strong>{deletingTour.name}</strong>? Hành động này không thể hoàn tác.</p>
+                </div>
+                <div className={styles.centeredActions}>
+                  <button type="button" className={styles.secondaryButton} onClick={() => setDeletingTour(null)} disabled={deleting}>Hủy</button>
+                  <button type="button" className={styles.dangerButton} onClick={() => void confirmDeleteTour()} disabled={deleting}>{deleting ? 'Đang xóa...' : 'Xóa tour'}</button>
+                </div>
+              </section>
            </div>}
 
-{tab === 'tours' && tourFormOpen && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeTourForm() }}>
-            <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="tour-form-title">
-              <div className={styles.modalHeader}><div><span className={styles.modalEyebrow}>{editingTour ? 'CHỈNH SỬA TOUR' : 'TOUR MỚI'}</span><h2 id="tour-form-title">{editingTour ? 'Chỉnh sửa tour' : 'Thêm tour mới'}</h2></div><button type="button" className={styles.modalClose} onClick={closeTourForm} aria-label="Đóng">×</button></div>
-              <form className={styles.formGrid} onSubmit={saveTour}>
-                <label>Tên tour<input required value={tourForm.name} onChange={(event) => setTourForm({ ...tourForm, name: event.target.value })} /></label>
-                <label>Điểm đến<input required value={tourForm.destination} onChange={(event) => setTourForm({ ...tourForm, destination: event.target.value })} /></label>
-                <label>Giá<input required type="number" min="0" value={tourForm.price} onChange={(event) => setTourForm({ ...tourForm, price: Number(event.target.value) })} /></label>
-                <label>Số ngày<input required type="number" min="1" value={tourForm.duration} onChange={(event) => setTourForm({ ...tourForm, duration: Number(event.target.value) })} /></label>
-                <label>Mùa/nhóm tour<input required value={tourForm.season || ''} onChange={(event) => setTourForm({ ...tourForm, season: event.target.value })} /></label>
-                <label className={styles.imageField}>Ảnh tour
-                  <div className={styles.imagePicker}><div className={styles.imageGrid}>{tourImages.map((image, index) => <div className={styles.imageThumb} key={`${image.url}-${index}`}><img src={image.url} alt={`Ảnh tour ${index + 1}`} /><button type="button" onClick={() => removeTourImage(index)} aria-label={`Xóa ảnh ${index + 1}`}>×</button></div>)}</div><label className={styles.fileButton}>Chọn nhiều ảnh<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleTourImageChange} /></label></div>
-                  <small>JPG, PNG hoặc WEBP · tối đa 5MB/ảnh · tối đa {MAX_TOUR_GALLERY_IMAGES} ảnh</small>
-                </label>
-                 <label className={styles.fullField}>Mô tả<RichTextEditor value={tourForm.description || ''} onChange={(description) => setTourForm({ ...tourForm, description })} /></label>
-                
 
-
-
-                 <details className={styles.advancedSection}>
-                   <summary>Thông tin nâng cao <span>(tùy chọn)</span></summary>
-                   <div className={styles.advancedGrid}>
-                     <label>Nhãn thời lượng<input value={tourForm.duration_label || ''} placeholder="Ví dụ: 3N2Đ" onChange={(event) => setTourForm({ ...tourForm, duration_label: event.target.value })} /></label>
-                     <label>Giá gốc<input type="number" min="0" value={tourForm.original_price || ''} placeholder="Không bắt buộc" onChange={(event) => setTourForm({ ...tourForm, original_price: event.target.value ? Number(event.target.value) : 0 })} /></label>
-                     <label className={styles.fullField}>Điểm nổi bật <small>Mỗi dòng một nội dung</small><textarea rows={4} value={arrayToLines(tourForm.highlights)} placeholder="Ví dụ: Tham quan Bà Nà Hills" onChange={(event) => updateListField('highlights', event.target.value, setTourForm)} /></label>
-                     <label>Điểm tham quan <small>Mỗi dòng một địa điểm</small><textarea rows={4} value={arrayToLines(tourForm.places)} placeholder="Hội An / Bà Nà Hills" onChange={(event) => updateListField('places', event.target.value, setTourForm)} /></label>
-                     <label>Chủ đề/trải nghiệm <small>Mỗi dòng một mục</small><textarea rows={4} value={arrayToLines(tourForm.topics)} placeholder="Nghỉ dưỡng / Ẩm thực" onChange={(event) => updateListField('topics', event.target.value, setTourForm)} /></label>
-                     <label>Đã bao gồm <small>Mỗi dòng một mục</small><textarea rows={4} value={arrayToLines(tourForm.included)} placeholder="Xe đưa đón / Bữa ăn theo lịch trình" onChange={(event) => updateListField('included', event.target.value, setTourForm)} /></label>
-                     <label>Chưa bao gồm <small>Mỗi dòng một mục</small><textarea rows={4} value={arrayToLines(tourForm.excluded)} placeholder="Chi phí cá nhân / Đồ uống" onChange={(event) => updateListField('excluded', event.target.value, setTourForm)} /></label>
-
-                     <div className={styles.fullField}>
-                       <div className={styles.optionalHeader}><div><strong>Lịch trình từng ngày</strong><small>Không bắt buộc; thêm các ngày nếu dữ liệu có sẵn.</small></div><button type="button" className={styles.smallButton} onClick={addItineraryDay}>+ Thêm ngày</button></div>
-                       <div className={styles.repeatableList}>{(tourForm.itinerary || []).map((day, index) => <div className={styles.repeatableCard} key={`${day.day}-${index}`}>
-                         <div className={styles.repeatableHeader}><strong>{day.day || `Ngày ${index + 1}`}</strong><button type="button" className={styles.removeButton} onClick={() => removeItineraryDay(index)}>Xóa</button></div>
-                         <div className={styles.inlineFields}><label>Ngày<input value={day.day} placeholder={`Ngày ${index + 1}`} onChange={(event) => updateItineraryDay(index, { day: event.target.value })} /></label><label>Bữa ăn<input value={day.meal || ''} placeholder="Ví dụ: Sáng, trưa" onChange={(event) => updateItineraryDay(index, { meal: event.target.value })} /></label></div>
-                         <label>Nội dung trong ngày <small>Mỗi dòng một hoạt động</small><textarea rows={3} value={arrayToLines(day.content)} onChange={(event) => updateItineraryDay(index, { content: linesToArray(event.target.value) })} /></label>
-                       </div>)}</div>
-                     </div>
-
-                     <div className={styles.fullField}>
-                       <div className={styles.optionalHeader}><div><strong>Lịch khởi hành</strong><small>Chỉ chọn ngày từ ngày mai trở đi; ngày đã qua không hiển thị.</small></div><button type="button" className={styles.smallButton} onClick={addScheduleRow}>+ Thêm lịch</button></div>
-                       <div className={styles.repeatableList}>{(tourForm.schedule || []).map((row, index) => <div className={styles.scheduleRow} key={`${row.date}-${index}`}><input aria-label={`Ngày khởi hành ${index + 1}`} type="date" min={getTomorrowIsoDate()} required value={row.date} onChange={(event) => updateScheduleRow(index, { date: event.target.value })} /><input aria-label={`Giá lịch ${index + 1}`} type="number" min="0" placeholder="Giá" value={row.price || ''} onChange={(event) => updateScheduleRow(index, { price: event.target.value ? Number(event.target.value) : 0 })} /><label className={styles.checkboxLabel}><input type="checkbox" checked={row.available} onChange={(event) => updateScheduleRow(index, { available: event.target.checked })} /> Còn chỗ</label><button type="button" className={styles.removeButton} onClick={() => removeScheduleRow(index)}>Xóa</button></div>)}</div>
-                     </div>
-
-                     <label>Hãng hàng không<input value={tourForm.transport?.airline || ''} placeholder="Nếu có" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), airline: event.target.value } })} /></label>
-                     <label>Phương tiện <small>Mỗi dòng một phương tiện</small><textarea rows={3} value={arrayToLines(tourForm.transport?.vehicle)} placeholder="Xe du lịch / Máy bay" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), vehicle: linesToArray(event.target.value) } })} /></label>
-                   </div>
-                 </details>
-<div className={styles.modalActions}><button type="button" className={styles.secondaryButton} onClick={closeTourForm}>Hủy</button><button className={styles.primaryButton} type="submit" disabled={saving}>{saving ? 'Đang lưu...' : editingTour ? 'Lưu thay đổi' : 'Tạo tour'}</button></div>
-              </form>
-            </section>
-          </div>}
-
-          {tab === 'bookings' && <>
+          {tab === 'bookings' && (
+          <>
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
-                <div><h2>Lịch sử đặt tour</h2><span>{bookings?.pagination.total || 0} đơn trong hệ thống</span></div>
-                <div className={styles.userFilters}>
-                  <select aria-label="Lọc trạng thái đơn" value={bookingStatusFilter} onChange={(event) => { setBookingPage(1); setBookingStatusFilter(event.target.value as 'all' | Booking['status']) }}>
-                    <option value="all">Tất cả trạng thái đơn</option>
-                    {Object.entries(bookingStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-                  </select>
-                  <select aria-label="Lọc trạng thái thanh toán" value={bookingPaymentFilter} onChange={(event) => { setBookingPage(1); setBookingPaymentFilter(event.target.value as 'all' | Booking['payment_status']) }}>
-                    <option value="all">Tất cả thanh toán</option>
-                    {Object.entries(paymentStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-                  </select>
+                <div>
+                  <h2>Lịch sử đặt tour</h2>
+                  <span>{bookings?.pagination.total || 0} đơn trong hệ thống</span>
                 </div>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  onClick={exportBookingsToCSV}
+                  title="Xuất toàn bộ đơn hàng sang file CSV"
+                >
+                  <Download size={15} /> Xuất CSV
+                </button>
               </div>
-              <div className={styles.tableWrap}><table className={styles.bookingTable}><thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Tour / khởi hành</th><th>Số khách</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày tạo</th><th /></tr></thead><tbody>
-                {bookings?.data.map((item) => <tr key={item.id}>
-                  <td><strong>{item.booking_code}</strong><small>{item.payment_code}</small></td>
-                  <td><strong>{item.user_name}</strong><small>{item.user_email}</small></td>
-                  <td><strong className={styles.bookingTourName}>{item.tour_name}</strong><small>{item.destination} · {formatDate(item.departure_date)}</small></td>
-                  <td>{item.guest_count}</td>
-                  <td><strong className={styles.amountCell}>{formatPrice(item.total_amount)}</strong></td>
-                  <td><div className={styles.bookingStatuses}><span className={`${styles.statusBadge} ${item.payment_status === 'paid' ? styles.statusPaid : styles.statusPending}`}>{paymentStatusLabels[item.payment_status]}</span><small>{bookingStatusLabels[item.status]}</small></div></td>
-                  <td>{formatDate(item.created_at, true)}</td>
-                  <td><button type="button" className={styles.detailButton} onClick={() => void openBookingDetail(item)}>Chi tiết</button></td>
-                </tr>)}
-              </tbody></table></div>
+              <div className={styles.tableWrap}>
+                <table className={styles.bookingTable}>
+                  <thead>
+                    <tr>
+                      <th>Mã đơn</th>
+                      <th>Khách hàng</th>
+                      <th>Tour / khởi hành</th>
+                      <th>Số khách</th>
+                      <th>Tổng tiền</th>
+                      <th>Trạng thái</th>
+                      <th>Ngày tạo</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookings?.data.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <div className={styles.codeCell}>
+                            <div className={styles.codeRow}>
+                              <strong>{item.booking_code}</strong>
+                              <button
+                                type="button"
+                                className={styles.copyBtn}
+                                onClick={() => void handleCopyCode(item.booking_code)}
+                                title="Sao chép mã đơn"
+                              >
+                                {copiedCode === item.booking_code ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                            {item.payment_code && <small>{item.payment_code}</small>}
+                          </div>
+                        </td>
+                        <td><strong>{item.user_name}</strong><small>{item.user_email}</small></td>
+                        <td><strong className={styles.bookingTourName}>{item.tour_name}</strong><small>{item.destination} · {formatDate(item.departure_date)}</small></td>
+                        <td>{item.guest_count}</td>
+                        <td><strong className={styles.amountCell}>{formatPrice(item.total_amount)}</strong></td>
+                        <td>
+                          <div className={styles.bookingStatuses}>
+                            <span className={`${styles.statusBadge} ${item.payment_status === 'paid' ? styles.statusPaid : styles.statusPending}`}>
+                              {paymentStatusLabels[item.payment_status]}
+                            </span>
+                            <small>{bookingStatusLabels[item.status]}</small>
+                          </div>
+                        </td>
+                        <td>{formatDate(item.created_at, true)}</td>
+                        <td>
+                          <button type="button" className={styles.detailButton} onClick={() => void openBookingDetail(item)}>
+                            Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {!bookings?.data.length && <div className={styles.emptyState}>Không tìm thấy đơn đặt tour phù hợp.</div>}
             </section>
-            {bookings && bookings.pagination.totalPages > 1 && <div className={styles.pagination}><button type="button" className={styles.paginationArrow} onClick={() => changeBookingPage(bookingPage - 1)} disabled={bookingPage <= 1} aria-label="Trang trước">&#8592;</button><label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={bookings.pagination.totalPages} value={bookingPage} aria-label="Nhập số trang đặt tour" onChange={(event) => { const nextPage = Number(event.target.value); if (nextPage >= 1) changeBookingPage(nextPage) }} /><span>/ {bookings.pagination.totalPages}</span></label><button type="button" className={styles.paginationArrow} onClick={() => changeBookingPage(bookingPage + 1)} disabled={bookingPage >= bookings.pagination.totalPages} aria-label="Trang sau">&#8594;</button></div>}
-          </>}
+            {bookings && bookings.pagination.totalPages > 1 && <div className={styles.pagination}><button type="button" className={styles.paginationArrow} onClick={() => changeBookingPage(bookingPage - 1)} disabled={bookingPage <= 1} aria-label="Trang trước"><ChevronLeft size={16} /></button><label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={bookings.pagination.totalPages} value={bookingPage} aria-label="Nhập số trang đặt tour" onChange={(event) => { const nextPage = Number(event.target.value); if (nextPage >= 1) changeBookingPage(nextPage) }} /><span>/ {bookings.pagination.totalPages}</span></label><button type="button" className={styles.paginationArrow} onClick={() => changeBookingPage(bookingPage + 1)} disabled={bookingPage >= bookings.pagination.totalPages} aria-label="Trang sau"><ChevronRight size={16} /></button></div>}
+          </>
+        )}
 
           {tab === 'users' && <>
             <section className={styles.panel}>
-              <div className={styles.panelHeader}><div><h2>Người dùng</h2><span>{users?.pagination.total || 0} tài khoản</span></div><div className={styles.userFilters}><select aria-label="Lọc theo quyền" value={userRoleFilter} onChange={(event) => { setUserPage(1); setUserRoleFilter(event.target.value as 'all' | 'user' | 'admin') }}><option value="all">Tất cả quyền</option><option value="user">Người dùng</option><option value="admin">Quản trị viên</option></select><select aria-label="Lọc theo trạng thái" value={userStatusFilter} onChange={(event) => { setUserPage(1); setUserStatusFilter(event.target.value as 'all' | 'active' | 'inactive') }}><option value="all">Tất cả trạng thái</option><option value="active">Đang hoạt động</option><option value="inactive">Đã khóa</option></select></div></div>
+              <div className={styles.panelHeader}><div><h2>Người dùng</h2><span>{users?.pagination.total || 0} tài khoản</span></div></div>
               <div className={styles.tableWrap}><table><thead><tr><th>Người dùng</th><th>Quyền</th><th>Trạng thái</th><th>Tương tác</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead><tbody>{users?.data.map((item) => <tr key={item.id}>
                 <td><strong>{item.name}</strong><small>{item.email}</small></td>
-                <td><select value={item.role} onChange={(event) => updateRole(item, event.target.value as 'user' | 'admin')} disabled={item.id === user.id}><option value="user">Người dùng</option><option value="admin">Quản trị viên</option></select></td>
-                <td><select className={item.is_active ? styles.statusActive : styles.statusInactive} value={item.is_active ? 'active' : 'inactive'} onChange={(event) => updateStatus(item, event.target.value === 'active')} disabled={item.id === user.id}><option value="active">Đang hoạt động</option><option value="inactive">Đã khóa</option></select></td>
-                <td><div className={styles.userMetrics}><span>&#9829; {item.favorite_count || 0}</span><span>&#9889; {item.action_count || 0}</span><span>&#9733; {item.review_count || 0}</span></div></td>
+                <td><Dropdown className={`${styles.inlineSelect} ${item.role === 'admin' ? styles.roleAdmin : styles.roleUser}`} value={item.role} onChange={(val) => updateRole(item, val as 'user' | 'admin')} disabled={item.id === user.id} options={[{value: 'user', label: 'Người dùng'}, {value: 'admin', label: 'Quản trị viên'}]} /></td>
+                <td><Dropdown className={`${styles.inlineSelect} ${item.is_active ? styles.statusActive : styles.statusInactive}`} value={item.is_active ? 'active' : 'inactive'} onChange={(val) => updateStatus(item, val === 'active')} disabled={item.id === user.id} options={[{value: 'active', label: 'Đang hoạt động'}, {value: 'inactive', label: 'Đã khóa'}]} /></td>
+                <td>
+                  <div className={styles.userMetrics}>
+                    <span className={styles.metricItem} title="Số tour yêu thích"><Heart size={13} className={styles.metricHeart} /> {item.favorite_count || 0}</span>
+                    <span className={styles.metricItem} title="Lượt tương tác"><Zap size={13} className={styles.metricZap} /> {item.action_count || 0}</span>
+                    <span className={styles.metricItem} title="Đánh giá đã viết"><Star size={13} className={styles.metricStar} /> {item.review_count || 0}</span>
+                  </div>
+                </td>
                 <td>{formatDate(item.created_at)}</td>
-                <td><div className={styles.rowActions}><button type="button" onClick={() => void openUserDetail(item)}>Chi tiết</button><button type="button" className={styles.dangerText} onClick={() => deleteUser(item)} disabled={item.id === user.id}>Xóa</button></div></td>
+                <td>
+                  <div className={styles.rowActions}>
+                    <button type="button" className={styles.tableActionBtn} onClick={() => void openUserDetail(item)}>Chi tiết</button>
+                    <button type="button" className={styles.tableActionBtn} onClick={() => openPasswordDialog(item)}>Đổi MK</button>
+                    <button type="button" className={styles.tableActionBtnDanger} onClick={() => deleteUser(item)} disabled={item.id === user.id}>Xóa</button>
+                  </div>
+                </td>
               </tr>)}</tbody></table></div>
               {!users?.data.length && <div className={styles.emptyState}>Không tìm thấy tài khoản phù hợp.</div>}
-              {users && users.pagination.totalPages > 1 && <div className={styles.pagination}><button type="button" className={styles.paginationArrow} onClick={() => changeUserPage(userPage - 1)} disabled={userPage <= 1} aria-label="Trang trước">&#8592;</button><label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={users.pagination.totalPages} value={userPage} aria-label="Nhập số trang người dùng" onChange={(event) => { const page = Number(event.target.value); if (page >= 1) changeUserPage(page) }} /><span>/ {users.pagination.totalPages}</span></label><button type="button" className={styles.paginationArrow} onClick={() => changeUserPage(userPage + 1)} disabled={userPage >= users.pagination.totalPages} aria-label="Trang sau">&#8594;</button></div>}
+              {users && users.pagination.totalPages > 1 && <div className={styles.pagination}><button type="button" className={styles.paginationArrow} onClick={() => changeUserPage(userPage - 1)} disabled={userPage <= 1} aria-label="Trang trước"><ChevronLeft size={16} /></button><label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={users.pagination.totalPages} value={userPage} aria-label="Nhập số trang người dùng" onChange={(event) => { const page = Number(event.target.value); if (page >= 1) changeUserPage(page) }} /><span>/ {users.pagination.totalPages}</span></label><button type="button" className={styles.paginationArrow} onClick={() => changeUserPage(userPage + 1)} disabled={userPage >= users.pagination.totalPages} aria-label="Trang sau"><ChevronRight size={16} /></button></div>}
             </section>
           </>}
 
@@ -680,10 +1259,160 @@ export function AdminPage() {
 
           {userDetail && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setUserDetail(null) }}><section className={styles.userDetailModal} role="dialog" aria-modal="true" aria-labelledby="user-detail-title"><div className={styles.modalHeader}><div><span className={styles.modalEyebrow}>HỒ SƠ NGƯỜI DÙNG</span><h2 id="user-detail-title">{userDetail.name}</h2><p className={styles.detailEmail}>{userDetail.email}</p></div><button type="button" className={styles.modalClose} onClick={() => setUserDetail(null)} aria-label="Đóng"><span aria-hidden="true">&#215;</span></button></div><div className={styles.userDetailStats}><div><strong>{userDetail.favorite_count || 0}</strong><span>Yêu thích</span></div><div><strong>{userDetail.action_count || 0}</strong><span>Tương tác</span></div><div><strong>{userDetail.review_count || 0}</strong><span>Đánh giá</span></div><div><strong>{userDetail.chat_session_count || 0}</strong><span>Cuộc chat</span></div></div><div className={styles.detailGrid}><section><h3>Tour yêu thích</h3>{userDetail.favorites.length ? <ul className={styles.detailList}>{userDetail.favorites.slice(0, 6).map((favorite) => <li key={favorite.id}><strong>{favorite.name}</strong><span>{favorite.destination} &#183; {formatPrice(favorite.price)}</span></li>)}</ul> : <p className={styles.detailEmpty}>Chưa có tour yêu thích.</p>}</section><section className={styles.detailFull}><h3>Đánh giá đã viết</h3>{userDetail.reviews.length ? <ul className={styles.detailList}>{userDetail.reviews.map((review) => <li key={review.id}><strong>{review.tour_name} &#183; {review.rating}/10</strong><span>{review.content}</span></li>)}</ul> : <p className={styles.detailEmpty}>Chưa có đánh giá.</p>}</section></div></section></div>}
 
+          {passwordTarget && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closePasswordDialog() }}>
+            <section className={`${styles.modal} ${styles.passwordModal}`} role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+              <div className={styles.modalHeader}><div><span className={styles.modalEyebrow}>BẢO MẬT TÀI KHOẢN</span><h2 id="password-modal-title">Đổi mật khẩu</h2><p className={styles.detailEmail}>{passwordTarget.name} · {passwordTarget.email}</p></div><button type="button" className={styles.modalClose} onClick={closePasswordDialog} disabled={passwordActionLoading} aria-label="Đóng"><span aria-hidden="true">&#215;</span></button></div>
+              <form className={styles.passwordForm} onSubmit={(event) => void updateUserPassword(event)} autoComplete="off">
+                <label><span>Mật khẩu mới</span><div className={styles.passwordControl}><input type="text" autoComplete="off" className={!showNewUserPassword ? styles.adminPasswordMasked : undefined} value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} minLength={12} maxLength={24} spellCheck={false} required /><button type="button" onClick={() => setShowNewUserPassword((visible) => !visible)}>{showNewUserPassword ? 'Ẩn' : 'Hiện'}</button></div></label>
+                <ul className={styles.passwordChecklist} aria-live="polite">{userPasswordRequirements.map((requirement) => <li key={requirement.label} className={requirement.met ? styles.passwordRequirementMet : undefined}><span aria-hidden="true">{requirement.met ? '✓' : ''}</span>{requirement.label}</li>)}</ul>
+                <label><span>Xác nhận mật khẩu</span><div className={styles.passwordControl}><input type="text" autoComplete="off" className={!showConfirmUserPassword ? styles.adminPasswordMasked : undefined} value={confirmUserPassword} onChange={(event) => setConfirmUserPassword(event.target.value)} minLength={12} maxLength={24} spellCheck={false} required /><button type="button" onClick={() => setShowConfirmUserPassword((visible) => !visible)}>{showConfirmUserPassword ? 'Ẩn' : 'Hiện'}</button></div></label>
+                {passwordActionError && <p className={styles.passwordError} role="alert">{passwordActionError}</p>}
+                <div className={styles.passwordActions}><button type="button" className={styles.secondaryButton} onClick={closePasswordDialog} disabled={passwordActionLoading}>Hủy</button><button type="submit" className={styles.primaryButton} disabled={passwordActionLoading}>{passwordActionLoading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}</button></div>
+              </form>
+            </section>
+          </div>}
+
           {userAction && <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !userActionLoading) setUserAction(null) }}><section className={styles.confirmModal} role="dialog" aria-modal="true" aria-labelledby="user-action-title"><div className={styles.confirmIcon} aria-hidden="true">!</div><div className={styles.confirmContent}><span className={styles.modalEyebrow}>XÁC NHẬN THAY ĐỔI</span><h2 id="user-action-title">{userAction.kind === 'delete' ? 'Xóa tài khoản?' : userAction.kind === 'status' ? (userAction.is_active ? 'Mở khóa tài khoản?' : 'Khóa tài khoản?') : 'Đổi quyền tài khoản?'}</h2><p>{userAction.kind === 'delete' ? <>Tài khoản <strong>{userAction.target.email}</strong> sẽ bị xóa khỏi hệ thống.</> : userAction.kind === 'status' ? <>Bạn muốn {userAction.is_active ? 'mở khóa' : 'khóa'} tài khoản <strong>{userAction.target.email}</strong>?</> : <>Đổi quyền của <strong>{userAction.target.email}</strong> thành <strong>{userAction.role === 'admin' ? 'Quản trị viên' : 'Người dùng'}</strong>?</>}</p></div><div className={styles.confirmActions}><button type="button" className={styles.secondaryButton} onClick={() => setUserAction(null)} disabled={userActionLoading}>Hủy</button><button type="button" className={styles.dangerButton} onClick={() => void confirmUserAction()} disabled={userActionLoading}>{userActionLoading ? 'Đang xử lý...' : 'Xác nhận'}</button></div></section></div>}
 
         </section>
       )}
+          {tab === 'tours' && tourFormOpen && (
+            <section className={styles.formWorkspace} aria-labelledby="tour-form-title">
+              <div className={styles.formPanelHeader}>
+                <button type="button" className={styles.backButton} onClick={closeTourForm} aria-label="Quay lại danh sách">
+                  &larr; Quay lại
+                </button>
+                <div className={styles.formPanelTitle}>
+                  <span className={styles.modalEyebrow}>{editingTour ? 'CHỈNH SỬA TOUR' : 'TOUR MỚI'}</span>
+                  <h2 id="tour-form-title">{editingTour ? 'Chỉnh sửa tour' : 'Thêm tour mới'}</h2>
+                </div>
+                <div className={styles.headerActions}>
+                  <button type="button" className={styles.secondaryButton} onClick={closeTourForm}>Hủy</button>
+                  <button type="button" className={styles.primaryButton} onClick={(e) => { const form = e.currentTarget.closest('section')?.querySelector('form'); if (form) form.requestSubmit(); }} disabled={saving}>{saving ? 'Đang lưu...' : editingTour ? 'Lưu thay đổi' : 'Tạo tour'}</button>
+                </div>
+              </div>
+              <form className={styles.formLayout} onSubmit={saveTour}>
+                
+                <div className={styles.formMain}>
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <h3>Thông tin chung</h3>
+                      <p>Tên tour, điểm đến và các thông tin cơ bản.</p>
+                    </div>
+                    <div className={styles.sectionContent}>
+                      <label className={styles.fullField}><span>Tên tour <span className={styles.req}>*</span></span><input required value={tourForm.name} onChange={(event) => setTourForm({ ...tourForm, name: event.target.value })} /></label>
+                      <label className={styles.fullField}><span>Điểm đến <span className={styles.req}>*</span></span><input required value={tourForm.destination} onChange={(event) => setTourForm({ ...tourForm, destination: event.target.value })} /></label>
+                      <div className={styles.inlineFields}>
+                        <label><span>Giá bán <span className={styles.req}>*</span></span><div className={styles.priceInputWrap}><input required type="text" value={tourForm.price !== undefined ? tourForm.price.toLocaleString('en-US') : ''} onChange={(event) => { const val = event.target.value.replace(/\D/g, ''); setTourForm({ ...tourForm, price: val ? Number(val) : 0 }) }} /><span>₫</span></div></label>
+                        <label>Giá gốc<div className={styles.priceInputWrap}><input type="text" value={tourForm.original_price ? tourForm.original_price.toLocaleString('en-US') : ''} placeholder="Không bắt buộc" onChange={(event) => { const val = event.target.value.replace(/\D/g, ''); setTourForm({ ...tourForm, original_price: val ? Number(val) : 0 }) }} /><span>₫</span></div></label>
+                      </div>
+                      <div className={styles.inlineFields}>
+                        <label><span>Số ngày <span className={styles.req}>*</span></span><input required type="number" min="1" value={tourForm.duration} onChange={(event) => setTourForm({ ...tourForm, duration: Number(event.target.value) })} /></label>
+                        <label>Nhãn thời lượng<input value={tourForm.duration_label || ''} placeholder="Ví dụ: 3N2Đ" onChange={(event) => setTourForm({ ...tourForm, duration_label: event.target.value })} /></label>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <h3>Hình ảnh & Mô tả</h3>
+                      <p>Hình ảnh thu hút và mô tả chi tiết chương trình.</p>
+                    </div>
+                    <div className={styles.sectionContent}>
+                      <label className={styles.fullField}><span>Ảnh tour <span className={styles.req}>*</span></span>
+                        <div className={styles.imagePicker}><div className={styles.imageGrid}>{tourImages.map((image, index) => <div className={styles.imageThumb} key={`${image.url}-${index}`}><img src={image.url} alt={`Ảnh tour ${index + 1}`} /><button type="button" onClick={() => removeTourImage(index)} aria-label={`Xóa ảnh ${index + 1}`}>×</button></div>)}</div><label className={styles.fileButton}>Chọn nhiều ảnh<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleTourImageChange} /></label></div>
+                        <small>JPG, PNG hoặc WEBP · tối đa 5MB/ảnh · tối đa {MAX_TOUR_GALLERY_IMAGES} ảnh</small>
+                      </label>
+                      <label className={styles.fullField}><span>Mô tả <span className={styles.req}>*</span></span><RichTextEditor value={tourForm.description || ''} onChange={(description) => setTourForm({ ...tourForm, description })} /></label>
+                    </div>
+                  </section>
+
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <h3>Điểm nhấn & Trải nghiệm</h3>
+                      <p>Các yếu tố nổi bật, bao gồm và chưa bao gồm.</p>
+                    </div>
+                    <div className={styles.sectionContent}>
+                      <label className={styles.fullField}>Điểm nổi bật <small>Mỗi dòng một nội dung</small><textarea rows={4} value={arrayToLines(tourForm.highlights)} placeholder="Ví dụ: Tham quan Bà Nà Hills" onChange={(event) => updateListField('highlights', event.target.value, setTourForm)} /></label>
+                      <label className={styles.fullField}>Điểm tham quan <small>Mỗi dòng một địa điểm</small><textarea rows={3} value={arrayToLines(tourForm.places)} placeholder="Hội An / Bà Nà Hills" onChange={(event) => updateListField('places', event.target.value, setTourForm)} /></label>
+                      <label className={styles.fullField}>Chủ đề/trải nghiệm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.topics)} placeholder="Nghỉ dưỡng / Ẩm thực" onChange={(event) => updateListField('topics', event.target.value, setTourForm)} /></label>
+                      <div className={`${styles.fullField} ${styles.aiTagsField}`}>
+                        <div className={styles.aiTagsHeader}>
+                          <div><strong>Hashtag AI <span className={styles.req}>*</span></strong><small>Chọn đặc trưng để AI ghép tour với sở thích người dùng.</small></div>
+                          <span>{tourForm.tags?.length || 0} tag đã chọn</span>
+                        </div>
+                        <div className={styles.aiTagOptions}>
+                          {tourTagCatalog.map((item) => {
+                            const selected = tourForm.tags?.some((tag) => tag.tag === item.tag)
+                            return <button key={item.tag} type="button" aria-pressed={selected} className={selected ? styles.aiTagSelected : styles.aiTagOption} onClick={() => toggleTourTag(item.tag)}>#{item.label}</button>
+                          })}
+                        </div>
+                        {tourForm.tags?.length ? <div className={styles.aiTagWeights}>
+                          {tourForm.tags.map((item) => {
+                            const label = tourTagCatalog.find((catalogItem) => catalogItem.tag === item.tag)?.label || item.tag
+                            return <div className={styles.aiTagWeightRow} key={item.tag}>
+                              <span>#{label}</span>
+                              <input aria-label={`Mức độ phù hợp của tag ${label}`} type="range" min="0.1" max="1" step="0.1" value={item.weight} onChange={(event) => updateTourTagWeight(item.tag, Number(event.target.value))} />
+                              <strong>{Math.round(item.weight * 100)}%</strong>
+                            </div>
+                          })}
+                        </div> : <p className={styles.aiTagsEmpty}>Cần chọn ít nhất một hashtag AI trước khi lưu tour.</p>}
+                      </div>
+                      <label className={styles.fullField}>Đã bao gồm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.included)} placeholder="Xe đưa đón / Bữa ăn theo lịch trình" onChange={(event) => updateListField('included', event.target.value, setTourForm)} /></label>
+                      <label className={styles.fullField}>Chưa bao gồm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.excluded)} placeholder="Chi phí cá nhân / Đồ uống" onChange={(event) => updateListField('excluded', event.target.value, setTourForm)} /></label>
+                    </div>
+                  </section>
+
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <div className={styles.sectionTitleWithAction}>
+                        <div>
+                          <h3>Lịch trình từng ngày</h3>
+                          <p>Chi tiết các hoạt động, bữa ăn theo từng ngày.</p>
+                        </div>
+                        <button type="button" className={styles.smallButton} onClick={addItineraryDay}>+ Thêm ngày</button>
+                      </div>
+                    </div>
+                    <div className={styles.sectionContentFull}>
+                      <div className={styles.repeatableList}>{(tourForm.itinerary || []).map((day, index) => <div className={styles.repeatableCard} key={`${day.day}-${index}`}>
+                        <div className={styles.repeatableHeader}><strong>{day.day || `Ngày ${index + 1}`}</strong><button type="button" className={styles.removeButton} onClick={() => removeItineraryDay(index)}>Xóa</button></div>
+                        <div className={styles.inlineFields}><label>Ngày<input value={day.day} placeholder={`Ngày ${index + 1}`} onChange={(event) => updateItineraryDay(index, { day: event.target.value })} /></label><label>Bữa ăn<input value={day.meal || ''} placeholder="Ví dụ: Sáng, trưa" onChange={(event) => updateItineraryDay(index, { meal: event.target.value })} /></label></div>
+                        <label className={styles.fullField}>Nội dung trong ngày <small>Mỗi dòng một hoạt động</small><textarea rows={3} value={arrayToLines(day.content)} onChange={(event) => updateItineraryDay(index, { content: linesToArray(event.target.value) })} /></label>
+                      </div>)}</div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className={styles.formSidebar}>
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <h3>Phân loại & Di chuyển</h3>
+                    </div>
+                    <div className={styles.sectionContent}>
+                      <label className={styles.fullField}><span>Mùa/nhóm tour</span><input value={tourForm.season || ''} onChange={(event) => setTourForm({ ...tourForm, season: event.target.value })} /></label>
+                      <label className={styles.fullField}>Hãng hàng không<input value={tourForm.transport?.airline || ''} placeholder="Nếu có" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), airline: event.target.value } })} /></label>
+                      <label className={styles.fullField}>Phương tiện <small>Mỗi dòng một phương tiện</small><textarea rows={3} value={arrayToLines(tourForm.transport?.vehicle)} placeholder="Xe du lịch / Máy bay" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), vehicle: linesToArray(event.target.value) } })} /></label>
+                    </div>
+                  </section>
+                  
+                  <section className={styles.formSection}>
+                    <div className={styles.sectionHeader}>
+                      <div className={styles.sectionTitleWithAction}>
+                        <div>
+                          <h3>Lịch khởi hành</h3>
+                        </div>
+                        <button type="button" className={styles.smallButton} onClick={addScheduleRow}>+ Thêm</button>
+                      </div>
+                    </div>
+                    <div className={styles.sectionContentFull}>
+                      <div className={styles.repeatableList}>{(tourForm.schedule || []).map((row, index) => <div className={styles.scheduleRow} key={`${row.date}-${index}`}><input aria-label={`Ngày khởi hành ${index + 1}`} type="date" min={getTomorrowIsoDate()} required value={row.date} onChange={(event) => updateScheduleRow(index, { date: event.target.value })} /><div className={styles.priceInputWrap}><input aria-label={`Giá lịch ${index + 1}`} type="text" placeholder="Giá" value={row.price ? row.price.toLocaleString('en-US') : ''} onChange={(event) => { const val = event.target.value.replace(/\D/g, ''); updateScheduleRow(index, { price: val ? Number(val) : 0 }) }} /><span>₫</span></div><label className={styles.checkboxLabel}><input type="checkbox" checked={row.available} onChange={(event) => updateScheduleRow(index, { available: event.target.checked })} /> Còn chỗ</label><button type="button" className={styles.removeButton} onClick={() => removeScheduleRow(index)}>Xóa</button></div>)}</div>
+                    </div>
+                  </section>
+                </div>
+
+              </form>
+            </section>
+          )}
         </main>
     </div>
 

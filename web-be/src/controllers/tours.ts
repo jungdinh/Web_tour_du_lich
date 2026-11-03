@@ -34,33 +34,56 @@ const INTERNATIONAL_DESTINATIONS = [
   'hokkaido', 'hong kong', 'indonesia', 'lao', 'le giang', 'malaysia',
   'maldives', 'my', 'na uy', 'nga', 'nhat ban', 'phan lan', 'phap',
   'philippines', 'phuket', 'phuong hoang co tran', 'quy chau', 'seoul',
-  'singapore', 'thai lan', 'thuong hai', 'thuy si', 'tokyo', 'tour du lich 2/9',
-  'tour he', 'tour no shopping', 'tour tu tuc', 'trung khanh', 'trung quoc', 'uc',
+  'singapore', 'thai lan', 'thuong hai', 'thuy si', 'tokyo', 'trung khanh',
+  'trung quoc', 'uc',
+];
+
+const DOMESTIC_DESTINATIONS = [
+  'an giang', 'ba ria - vung tau', 'bac giang', 'bac kan', 'bac lieu',
+  'bac ninh', 'ben tre', 'binh dinh', 'binh duong', 'binh phuoc',
+  'binh thuan', 'ca mau', 'can tho', 'cao bang', 'cat ba', 'con dao',
+  'da lat', 'da nang', 'dak lak', 'dak nong', 'dien bien', 'dong nai',
+  'dong thap', 'dong tay bac', 'gia lai', 'ha giang', 'ha long', 'ha nam',
+  'ha noi', 'ha tinh', 'hai duong', 'hai phong', 'hau giang', 'ho chi minh',
+  'hoa binh', 'hoi an', 'hue', 'hung yen', 'khanh hoa', 'kien giang',
+  'kon tum', 'lai chau', 'lam dong', 'lang son', 'lao cai', 'long an',
+  'mien bac', 'mien tay', 'mien trung', 'moc chau', 'nam dinh', 'nghe an',
+  'nha trang', 'ninh binh', 'ninh thuan', 'phan thiet', 'phu quoc',
+  'phu tho', 'phu yen', 'quang binh', 'quang nam', 'quang ngai',
+  'quang ninh', 'quang tri', 'quy nhon', 'sa pa', 'sapa', 'soc trang',
+  'son la', 'tay nguyen', 'tay ninh', 'thai binh', 'thai nguyen',
+  'thanh hoa', 'thua thien hue', 'tien giang', 'tra vinh', 'tuyen quang',
+  'vinh long', 'vinh phuc', 'vung tau',
 ];
 
 const INTERNATIONAL_KEYWORDS = [
   'bac au', 'bac kinh', 'bali', 'bangkok', 'busan', 'canada', 'chau au',
   'cuu trai cau', 'dai loan', 'disneyland', 'dubai', 'emirates', 'han quoc',
-  'hong kong', 'hongkong', 'indonesia', 'kyoto', 'las vegas', 'le giang',
-  'los angeles', 'malaysia', 'maldives', 'melbourne', 'nhat ban', 'nusa penida',
-  'na uy', 'osaka', 'pattaya', 'phan lan', 'phap', 'philippines', 'phuket',
-  'phat quang son', 'seoul', 'singapore', 'sydney', 'tho nhi ky', 'thuy si',
-  'thai lan', 'thuong hai', 'tokyo', 'toronto', 'tour du lich 2/9', 'tour he',
-  'tour no shopping', 'tour tu tuc', 'trung quoc', 'vancouver',
+  'hoa son', 'hokkaido', 'hong kong', 'hongkong', 'indonesia', 'khai phong',
+  'kyoto', 'lac duong', 'las vegas', 'le giang', 'los angeles', 'malaysia',
+  'maldives', 'melbourne', 'nagoya', 'nhat ban', 'nusa penida', 'na uy',
+  'osaka', 'pattaya', 'phan lan', 'phap', 'philippines', 'phuket',
+  'phat quang son', 'quang chau', 'seoul', 'shirakawa', 'singapore', 'sydney',
+  'tham quyen', 'tho nhi ky', 'thuy si', 'thai lan', 'thuong hai', 'tokyo',
+  'toronto', 'tay an', 'trung quoc', 'vancouver', 'vu han',
 ];
 
 const sqlStringLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`;
 const internationalDestinationSql = INTERNATIONAL_DESTINATIONS.map(sqlStringLiteral).join(', ');
+const domesticDestinationSql = DOMESTIC_DESTINATIONS.map(sqlStringLiteral).join(', ');
 const internationalKeywordSql = INTERNATIONAL_KEYWORDS.map(sqlStringLiteral).join(', ');
 
 const internationalCondition = () => `(
-  ${normalizedSql('destination')} IN (${internationalDestinationSql})
-  OR EXISTS (
-    SELECT 1
-    FROM unnest(ARRAY[${internationalKeywordSql}]) AS keyword(value)
-    WHERE ${normalizedSql('name')} LIKE '%' || keyword.value || '%'
-       OR ${normalizedSql('destination')} LIKE '%' || keyword.value || '%'
-       OR ${normalizedSql("array_to_string(places, ' ')")} LIKE '%' || keyword.value || '%'
+  ${normalizedSql('destination')} NOT IN (${domesticDestinationSql})
+  AND (
+    ${normalizedSql('destination')} IN (${internationalDestinationSql})
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(ARRAY[${internationalKeywordSql}]) AS keyword(value)
+      WHERE ${normalizedSql('name')} LIKE '%' || keyword.value || '%'
+         OR ${normalizedSql('destination')} LIKE '%' || keyword.value || '%'
+         OR ${normalizedSql("array_to_string(places, ' ')")} LIKE '%' || keyword.value || '%'
+    )
   )
 )`;
 
@@ -80,6 +103,10 @@ const paginate = (page: number, limit: number) => {
 const reviewPaginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+const similarToursQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(12).default(8),
 });
 
 const reviewInputSchema = z.object({
@@ -134,6 +161,7 @@ const reviewSelect = `
   SELECT r.id, r.content, r.rating,
          COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(r.reviewer_name), ''), 'Khách du lịch') AS reviewer_name,
          r.user_id, r.created_at, r.updated_at,
+         GREATEST(r.updated_at, COALESCE(rr.updated_at, rr.created_at, r.updated_at)) AS activity_at,
          rr.id AS admin_reply_id,
          rr.content AS admin_reply_content,
          rr.created_at AS admin_reply_created_at,
@@ -148,6 +176,7 @@ const reviewSelectWithoutReplies = `
   SELECT r.id, r.content, r.rating,
          COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
          r.user_id, r.created_at, r.updated_at,
+         r.updated_at AS activity_at,
          NULL::int AS admin_reply_id,
          NULL::text AS admin_reply_content,
          NULL::timestamp AS admin_reply_created_at,
@@ -160,6 +189,7 @@ const legacyReviewSelect = `
   SELECT r.id, r.content, r.rating,
          COALESCE(NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
          NULL::int AS user_id, r.created_at, r.created_at AS updated_at,
+         r.created_at AS activity_at,
          NULL::int AS admin_reply_id,
          NULL::text AS admin_reply_content,
          NULL::timestamp AS admin_reply_created_at,
@@ -402,7 +432,7 @@ export const getTourReviews = async (req: Request, res: Response) => {
     
     const result = await queryTourReviews(
       `WHERE r.tour_id = $1
-       ORDER BY r.created_at DESC
+       ORDER BY activity_at DESC, r.id DESC
        LIMIT $2 OFFSET $3`,
       [tourId, pageSize, offset]
     );
@@ -423,6 +453,86 @@ export const getTourReviews = async (req: Request, res: Response) => {
     }
     console.error('Get reviews error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getSimilarTours = async (req: Request, res: Response) => {
+  try {
+    const tourId = parsePositiveId(req.params.id);
+    const { limit } = similarToursQuerySchema.parse(req.query);
+    const cacheKey = `similar_tours:${tourId}:${limit}`;
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const targetResult = await query(
+      'SELECT destination FROM tours WHERE id = $1',
+      [tourId]
+    );
+
+    if (targetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tour not found' });
+    }
+
+    const result = await query(
+      `WITH target_tags AS (
+         SELECT tag, weight
+         FROM tour_tags
+         WHERE tour_id = $1
+       )
+       SELECT t.id, t.name, t.destination, t.price, t.duration, t.duration_label,
+              t.original_price, t.description, t.avg_rating, t.review_count,
+              t.source, t.source_url, t.image_url, t.season,
+              t.highlights, t.places, t.topics, t.gallery,
+              t.itinerary, t.included, t.excluded, t.schedule, t.transport,
+              COALESCE((
+                SELECT SUM(LEAST(candidate.weight, target_tag.weight))
+                FROM tour_tags candidate
+                JOIN target_tags target_tag ON target_tag.tag = candidate.tag
+                WHERE candidate.tour_id = t.id
+              ), 0)::float AS similarity_score,
+              CASE
+                WHEN LOWER(TRIM(t.destination)) = LOWER(TRIM($2::text)) THEN 1
+                ELSE 0
+              END AS destination_score
+       FROM tours t
+       WHERE t.id <> $1
+         AND (
+           LOWER(TRIM(t.destination)) = LOWER(TRIM($2::text))
+           OR EXISTS (
+             SELECT 1
+             FROM tour_tags candidate
+             JOIN target_tags target_tag ON target_tag.tag = candidate.tag
+             WHERE candidate.tour_id = t.id
+           )
+         )
+       ORDER BY similarity_score DESC,
+                destination_score DESC,
+                t.avg_rating DESC NULLS LAST,
+                t.review_count DESC NULLS LAST,
+                t.id DESC
+       LIMIT $3`,
+      [tourId, targetResult.rows[0].destination, limit]
+    );
+
+    const similarTours = result.rows.map((row) => {
+      const { similarity_score: _similarityScore, destination_score: _destinationScore, ...tour } = row;
+      return mapTourSchedule(tour);
+    });
+
+    cache.set(cacheKey, similarTours, 1800);
+    return res.json(similarTours);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.flatten() });
+    }
+    if (error instanceof Error && error.message === 'Invalid id') {
+      return res.status(400).json({ error: 'Mã tour không hợp lệ.' });
+    }
+    console.error('Get similar tours error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 

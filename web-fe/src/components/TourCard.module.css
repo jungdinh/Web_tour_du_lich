@@ -237,6 +237,9 @@
 }
 
 .transportTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -244,6 +247,10 @@
   border: 1px solid var(--color-border);
   padding: 2px 7px;
   border-radius: var(--radius-sm);
+}
+
+.transportTag svg {
+  color: var(--color-accent);
 }
 
 .name {
@@ -274,6 +281,9 @@
 }
 
 .placeTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 0.71875rem;
   color: var(--color-text-secondary);
   background: var(--color-surface-subtle);
@@ -284,6 +294,11 @@
   max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.checkIcon {
+  color: #10b981;
+  flex-shrink: 0;
 }
 
 /* FOOTER */
@@ -354,4 +369,115 @@
 /* SKELETON CARD */
 .skeletonCard {
   pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .compactOnMobile .card,
+  .compactOnMobile.skeletonCard {
+    display: grid;
+    grid-template-columns: 40% minmax(0, 1fr);
+    min-height: 164px;
+    border-radius: 16px;
+  }
+
+  .compactOnMobile .imageContainer {
+    height: 100%;
+    min-height: 164px;
+    aspect-ratio: auto;
+  }
+
+  .compactOnMobile .content {
+    min-width: 0;
+    padding: 11px;
+    gap: 5px;
+  }
+
+  .compactOnMobile .topBadges {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    gap: 5px;
+  }
+
+  .compactOnMobile .locationBadge,
+  .compactOnMobile .customBadge {
+    max-width: calc(100% - 36px);
+    overflow: hidden;
+    padding: 3px 7px;
+    font-size: 0.625rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .compactOnMobile .favoriteBtn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .compactOnMobile .heartIcon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .compactOnMobile .bottomBadges {
+    right: auto;
+    bottom: 8px;
+    left: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .compactOnMobile .durationPill,
+  .compactOnMobile .ratingBadge {
+    padding: 3px 7px;
+    font-size: 0.65rem;
+  }
+
+  .compactOnMobile .reviewCount,
+  .compactOnMobile .transportTag,
+  .compactOnMobile .placesList {
+    display: none;
+  }
+
+  .compactOnMobile .headerInfo {
+    min-width: 0;
+  }
+
+  .compactOnMobile .categoryLabel {
+    overflow: hidden;
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .compactOnMobile .name {
+    min-height: 2.7em;
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
+  .compactOnMobile .footer {
+    padding-top: 8px;
+    gap: 5px;
+  }
+
+  .compactOnMobile .priceLabel {
+    font-size: 0.6rem;
+  }
+
+  .compactOnMobile .currentPrice {
+    font-size: 0.96rem;
+  }
+
+  .compactOnMobile .actionBtn {
+    width: 32px;
+    height: 32px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .compactOnMobile .actionBtn span {
+    display: none;
+  }
 }

@@ -13,6 +13,7 @@ import { FavoritesPage } from './pages/Favorites'
 import { RecommendationsPage } from './pages/Recommendations'
 import { AdminPage } from './pages/Admin'
 import { PaymentResultPage } from './pages/PaymentResult'
+import { SettingsPage } from './pages/Settings'
 
 export default function App() {
   const { token } = useAuthStore()
@@ -30,8 +31,9 @@ export default function App() {
         <Route path="bookings" element={token ? <BookingsPage /> : <LoginPage />} />
         <Route path="favorites" element={token ? <FavoritesPage /> : <LoginPage />} />
         <Route path="recommendations" element={<RecommendationsPage />} />
-        <Route path="admin" element={token ? <AdminPage /> : <LoginPage />} />
+        <Route path="admin/*" element={token ? <AdminPage /> : <LoginPage />} />
         <Route path="payment-result" element={<PaymentResultPage />} />
+        <Route path='settings' element={token ? <SettingsPage /> : <LoginPage />} />
       </Route>
     </Routes>
   )
