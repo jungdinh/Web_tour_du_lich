@@ -26,3 +26,8 @@ register_resp.json
 
 # Local database credentials
 pass_postgree.txt
+.agents/
+docs/*.docx
+web-be/insert.cjs
+web-be/test.cjs
+web-fe/scripts/update_tour_detail.mjs
