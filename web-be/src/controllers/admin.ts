@@ -8,8 +8,10 @@ import type { PoolClient } from 'pg';
 import { getClient, query } from '../db/index.js';
 import { AuthRequest } from './auth.js';
 import { applyTravelTypeFilter, invalidateTourCache } from './tours.js';
-import { filterFutureScheduleRows, isFutureScheduleDate, normalizeScheduleDate } from '../utils/schedule.js';
+import { applyScheduleBookingCounts, isFutureScheduleDate, normalizeScheduleDate } from '../utils/schedule.js';
 import { assertStrongPassword, PasswordSecurityError } from '../services/passwordSecurity.js';
+import { hydrateTourScheduleAvailability, loadReservedGuestCountsForTour } from '../services/scheduleAvailability.js';
+import { publicUploadsBaseUrl, uploadsRoot } from '../uploadStorage.js';
 
 const MAX_TOUR_GALLERY_IMAGES = 60;
 const tourTagNames = [
@@ -41,7 +43,12 @@ const itineraryDaySchema = z.object({
 const scheduleRowSchema = z.object({
   date: z.string().trim().min(1, 'Ngày khởi hành là bắt buộc.').max(100),
   price: z.coerce.number().int().min(0).default(0),
-  available: z.boolean().default(true),
+  available: z.boolean().optional(),
+  status: z.enum(['open', 'paused', 'closed', 'cancelled']).optional(),
+  capacity: z.preprocess(
+    (value) => value === '' || value === undefined || value === null ? null : value,
+    z.coerce.number().int().positive().nullable(),
+  ).default(null),
 }).transform((row, context) => {
   const normalizedDate = normalizeScheduleDate(row.date);
   if (!normalizedDate) {
@@ -52,7 +59,14 @@ const scheduleRowSchema = z.object({
     });
     return z.NEVER;
   }
-  return { ...row, date: normalizedDate };
+  const status = row.status || (row.available === false ? 'closed' : 'open');
+  return {
+    date: normalizedDate,
+    price: row.price,
+    capacity: row.capacity,
+    status,
+    available: status === 'open',
+  };
 });
 
 const scheduleSchema = z.array(scheduleRowSchema).max(100).superRefine((rows, context) => {
@@ -79,6 +93,7 @@ const scheduleSchema = z.array(scheduleRowSchema).max(100).superRefine((rows, co
 const tourSchema = z.object({
   name: z.string().trim().min(2).max(500),
   destination: z.string().trim().min(1).max(255),
+  category: z.string().trim().min(1).max(120).optional().default('Tour tr\u1ecdn g\u00f3i'),
   price: z.coerce.number().int().min(0),
   duration: z.coerce.number().int().min(1).max(365),
   description: z.string().trim().min(1).max(20000),
@@ -139,13 +154,13 @@ export const uploadAdminTourImage = async (req: Request, res: Response) => {
       return res.status(413).json({ error: 'Ảnh không được vượt quá 5MB.' })
     }
 
-    const uploadDir = path.resolve(process.cwd(), 'uploads', 'tours')
+    const uploadDir = path.join(uploadsRoot, 'tours')
     await mkdir(uploadDir, { recursive: true })
     const filename = `${randomUUID()}.${extension}`
     await writeFile(path.join(uploadDir, filename), buffer)
 
     const baseUrl = `${req.protocol}://${req.get('host')}`
-    res.status(201).json({ url: `${baseUrl}/uploads/tours/${filename}` })
+    res.status(201).json({ url: `${publicUploadsBaseUrl(baseUrl)}/tours/${filename}` })
   } catch (error) {
     console.error('Admin image upload error:', error)
     res.status(500).json({ error: 'Không thể tải ảnh lên.' })
@@ -188,7 +203,14 @@ export const getDashboard = async (_req: AuthRequest, res: Response) => {
           (SELECT COUNT(*)::int FROM chat_messages) AS messages,
           (SELECT COUNT(*)::int FROM bookings) AS bookings,
           (SELECT COALESCE(SUM(total_amount), 0)::float FROM bookings WHERE payment_status = 'paid') AS revenue,
-          (SELECT COUNT(*)::int FROM bookings WHERE payment_status = 'paid') AS paid_bookings
+          (SELECT COUNT(*)::int FROM bookings WHERE payment_status = 'paid') AS paid_bookings,
+          (SELECT COUNT(*)::int FROM bookings WHERE status = 'pending_payment') AS pending_bookings,
+          (SELECT COUNT(*)::int FROM bookings WHERE status = 'expired') AS expired_bookings,
+          (SELECT COUNT(*)::int FROM bookings WHERE payment_status = 'failed') AS failed_payments,
+          (SELECT COUNT(*)::int FROM users WHERE created_at >= NOW() - INTERVAL '7 days') AS users_last_7d,
+          (SELECT COUNT(*)::int FROM chat_messages WHERE created_at >= NOW() - INTERVAL '24 hours') AS ai_messages_24h,
+          (SELECT COUNT(*)::int FROM bookings WHERE created_at >= NOW() - INTERVAL '7 days') AS bookings_last_7d,
+          (SELECT COALESCE(SUM(total_amount), 0)::float FROM bookings WHERE payment_status = 'paid' AND paid_at >= NOW() - INTERVAL '7 days') AS revenue_last_7d
       `),
       query(`SELECT destination, COUNT(*)::int AS count FROM tours GROUP BY destination ORDER BY count DESC LIMIT 6`),
       query(`SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC LIMIT 6`),
@@ -249,7 +271,7 @@ export const getAdminTours = async (req: Request, res: Response) => {
     params.push(limit, offset);
 
     const result = await query(
-      `SELECT id, name, destination, price, duration, duration_label, original_price, description, avg_rating, review_count, image_url, gallery, season, highlights, places, topics, itinerary, included, excluded, schedule, transport,
+      `SELECT id, name, destination, category, price, duration, duration_label, original_price, description, avg_rating, review_count, image_url, gallery, season, highlights, places, topics, itinerary, included, excluded, schedule, transport,
               COALESCE((
                 SELECT json_agg(json_build_object('tag', tt.tag, 'weight', tt.weight) ORDER BY tt.weight DESC, tt.tag ASC)
                 FROM tour_tags tt
@@ -260,11 +282,9 @@ export const getAdminTours = async (req: Request, res: Response) => {
       params,
     );
 
+    const tours = await hydrateTourScheduleAvailability(result.rows);
     res.json({
-      data: result.rows.map((tour) => ({
-        ...tour,
-        schedule: filterFutureScheduleRows(tour.schedule),
-      })),
+      data: tours,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
@@ -281,16 +301,16 @@ export const createAdminTour = async (req: Request, res: Response) => {
     await client.query('BEGIN');
     const result = await client.query(
       `INSERT INTO tours (
-         name, destination, price, duration, duration_label, original_price, description,
+         name, destination, category, price, duration, duration_label, original_price, description,
          image_url, gallery, season, highlights, places, topics, itinerary, included,
          excluded, schedule, transport, source
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'tourai')
-       RETURNING id, name, destination, price, duration, duration_label, original_price,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'vivu')
+       RETURNING id, name, destination, category, price, duration, duration_label, original_price,
          description, avg_rating, review_count, image_url, gallery, season, highlights,
          places, topics, itinerary, included, excluded, schedule, transport, created_at, updated_at`,
       [
-        payload.name, payload.destination, payload.price, payload.duration,
+        payload.name, payload.destination, payload.category, payload.price, payload.duration,
         payload.duration_label || null, payload.original_price || null, payload.description,
         payload.image_url || null, payload.gallery, payload.season, payload.highlights,
         payload.places, payload.topics, JSON.stringify(payload.itinerary), JSON.stringify(payload.included),
@@ -317,32 +337,54 @@ export const updateAdminTour = async (req: Request, res: Response) => {
     const id = parseId(req.params.id);
     const payload = tourSchema.parse(req.body);
     await client.query('BEGIN');
+    const lockedTour = await client.query('SELECT id FROM tours WHERE id = $1 FOR UPDATE', [id]);
+    if (!lockedTour.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tour not found' });
+    }
+
+    const bookedCounts = await loadReservedGuestCountsForTour(client, id);
+    for (const [departureDate, bookedCount] of bookedCounts) {
+      const scheduleRow = payload.schedule.find((row) => row.date === departureDate);
+      if (!scheduleRow) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `Không thể xóa lịch ${departureDate} vì đang có ${bookedCount} khách giữ chỗ.`,
+        });
+      }
+      if (scheduleRow.capacity !== null && scheduleRow.capacity < bookedCount) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `Sức chứa lịch ${departureDate} không thể nhỏ hơn ${bookedCount} chỗ đã đặt.`,
+        });
+      }
+    }
     const result = await client.query(
       `UPDATE tours
-       SET name = $1, destination = $2, price = $3, duration = $4, duration_label = $5,
-           original_price = $6, description = $7, image_url = $8, gallery = $9, season = $10,
-           highlights = $11, places = $12, topics = $13, itinerary = $14, included = $15,
-           excluded = $16, schedule = $17, transport = $18, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $19
-       RETURNING id, name, destination, price, duration, duration_label, original_price,
+       SET name = $1, destination = $2, category = $3, price = $4, duration = $5, duration_label = $6,
+           original_price = $7, description = $8, image_url = $9, gallery = $10, season = $11,
+           highlights = $12, places = $13, topics = $14, itinerary = $15, included = $16,
+           excluded = $17, schedule = $18, transport = $19, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $20
+       RETURNING id, name, destination, category, price, duration, duration_label, original_price,
          description, avg_rating, review_count, image_url, gallery, season, highlights,
          places, topics, itinerary, included, excluded, schedule, transport, created_at, updated_at`,
        [
-         payload.name, payload.destination, payload.price, payload.duration,
+         payload.name, payload.destination, payload.category, payload.price, payload.duration,
          payload.duration_label || null, payload.original_price || null, payload.description,
          payload.image_url || null, payload.gallery, payload.season, payload.highlights,
          payload.places, payload.topics, JSON.stringify(payload.itinerary), JSON.stringify(payload.included),
          JSON.stringify(payload.excluded), JSON.stringify(payload.schedule), JSON.stringify(payload.transport), id,
       ],
     );
-    if (!result.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Tour not found' });
-    }
     await replaceTourTags(client, id, payload.tags);
     await client.query('COMMIT');
     invalidateTourCache();
-    res.json({ ...result.rows[0], tags: payload.tags });
+    res.json({
+      ...result.rows[0],
+      tags: payload.tags,
+      schedule: applyScheduleBookingCounts(result.rows[0].schedule, bookedCounts),
+    });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     if (error instanceof z.ZodError) return res.status(400).json(validationErrorResponse(error));

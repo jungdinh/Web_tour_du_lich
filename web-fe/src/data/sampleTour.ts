@@ -1,6 +1,10 @@
 import rawHaLong from './tour-vinh-ha-long.json'
 import type { BestPriceTourRaw, Tour, Review } from '@/types'
 
+const sanitizeBrandText = (value: string) => value
+  .replace(/BestPrice\.vn/gi, 'Vivu')
+  .replace(/BestPrice/gi, 'Vivu')
+
 /**
  * Parse a Vietnamese-formatted price string ("935.000đ") into a number (935000).
  * BestPrice uses '.' as thousand separator and strips it before storing as int.
@@ -43,7 +47,7 @@ export function normalizeBestPriceTour(raw: BestPriceTourRaw): Tour {
   const id = extractTourId(raw)
   return {
     id,
-    name: raw.title || '(Chưa có tiêu đề)',
+    name: sanitizeBrandText(raw.title || '(Chưa có tiêu đề)'),
     destination: raw.category,
     price: parseVNDPrice(raw.price),
     original_price: parseVNDPrice(raw.original_price) || undefined,
@@ -52,16 +56,16 @@ export function normalizeBestPriceTour(raw: BestPriceTourRaw): Tour {
     avg_rating: parseRating(raw.rating),
     review_count: raw.review_count ?? 0,
     image_url: raw.gallery?.[0],
-    description: raw.description,
+    description: sanitizeBrandText(raw.description),
     source: 'bestprice',
     source_url: raw.url,
-    highlights: raw.highlights ?? [],
+    highlights: (raw.highlights ?? []).map(sanitizeBrandText),
     places: raw.places ?? [],
     topics: raw.topics ?? [],
     gallery: raw.gallery ?? [],
     itinerary: raw.itinerary ?? [],
-    included: raw.included ?? [],
-    excluded: raw.excluded ?? [],
+    included: (raw.included ?? []).map(sanitizeBrandText),
+    excluded: (raw.excluded ?? []).map(sanitizeBrandText),
     schedule: (raw.schedule ?? []).map((row) => ({
       date: row.date,
       price: parseVNDPrice(row.price),
@@ -83,7 +87,7 @@ export function normalizeBestPriceReviews(
     .filter((r) => r.content && r.content.trim().length > 0)
     .map((r, idx) => ({
       id: tourId * 1000 + idx,
-      content: r.content,
+      content: sanitizeBrandText(r.content),
       rating: parseRating(r.score),
       reviewer_name: r.name || 'Người dùng ẩn danh',
       created_at: toIsoDate(r.date),

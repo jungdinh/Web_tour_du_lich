@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Full-Height Clean AI Chat Workspace - TourAI Concierge
+   Full-Height Clean AI Chat Workspace - Vivu Concierge
    ========================================================================== */
 
 .chatPage {
@@ -935,6 +935,47 @@
   font-size: 0.78125rem;
   color: var(--color-text-secondary);
   font-style: italic;
+}
+
+.stopButton {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stopButton:hover { border-color: #ef4444; color: #b91c1c; }
+
+.chatErrorCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0.875rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-lg);
+  background: #fff7f7;
+  color: #7f1d1d;
+}
+
+.chatErrorCard div { display: flex; flex-direction: column; gap: 3px; }
+.chatErrorCard span { font-size: 0.8rem; line-height: 1.45; }
+
+.chatErrorCard button {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: #b91c1c;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ==========================================================================

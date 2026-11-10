@@ -202,6 +202,60 @@
   text-decoration: underline;
 }
 
+.similarToursRailViewport {
+  position: relative;
+}
+
+.similarToursNavBtn {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.similarToursNavPrev {
+  left: -18px;
+}
+
+.similarToursNavNext {
+  right: -18px;
+}
+
+.similarToursNavBtn:hover:not(:disabled),
+.similarToursNavBtn:focus-visible:not(:disabled) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+  box-shadow: 0 7px 18px var(--color-accent-glow);
+  transform: translateY(-50%) scale(1.06);
+  outline: none;
+}
+
+.similarToursNavBtn:disabled {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  box-shadow: var(--shadow-sm);
+}
+
+.similarToursNavBtn:disabled svg {
+  opacity: 0.38;
+}
+
 .similarToursRail {
   display: grid;
   grid-auto-flow: column;
@@ -211,7 +265,11 @@
   padding: 4px 2px var(--space-4);
   scroll-snap-type: x mandatory;
   overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.similarToursRail::-webkit-scrollbar {
+  display: none;
 }
 
 .similarTourItem {
@@ -229,6 +287,21 @@
   .similarToursHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .similarToursNavBtn {
+    width: 38px;
+    height: 38px;
+    background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+    box-shadow: var(--shadow-md);
+  }
+
+  .similarToursNavPrev {
+    left: -8px;
+  }
+
+  .similarToursNavNext {
+    right: -8px;
   }
 
   .similarToursRail {
@@ -1043,6 +1116,15 @@
   font-size: 0.78125rem;
 }
 
+.statusPaused {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-warning, #b45309);
+  font-weight: 600;
+  font-size: 0.78125rem;
+}
+
 .scheduleBookBtn {
   display: inline-flex;
   align-items: center;
@@ -1519,6 +1601,38 @@
   text-align: center;
 }
 
+.paymentCountdown {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-md);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.paymentCountdown span { font-size: 0.8rem; font-weight: 600; }
+.paymentCountdown strong { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.04em; }
+
+.bookingPolicy {
+  margin: 0 var(--space-6) var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.paymentPanel .bookingPolicy { margin: 0; }
+.bookingPolicy strong { color: var(--color-text); font-size: 0.8rem; }
+
 .paymentTourName {
   font-weight: 700;
   font-size: 1rem;
@@ -1662,6 +1776,31 @@
   font-size: 0.875rem;
   color: var(--color-text-secondary);
   cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .bookingModalBackdrop { padding: 10px; align-items: flex-end; }
+  .bookingModal { max-width: none; max-height: calc(100dvh - 20px); border-radius: var(--radius-xl); }
+  .bookingModalHeader { padding: var(--space-4); position: sticky; top: 0; z-index: 3; background: var(--color-surface); }
+  .bookingTourSummary { margin: var(--space-4) var(--space-4) 0; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .bookingTourSummary strong { white-space: normal; }
+  .bookingFormGrid { grid-template-columns: 1fr; padding: var(--space-4); }
+  .bookingFullField { grid-column: auto; }
+  .bookingError, .bookingPolicy { margin-left: var(--space-4); margin-right: var(--space-4); }
+  .bookingFormFooter { position: sticky; bottom: 0; z-index: 3; background: var(--color-surface); padding: var(--space-3) var(--space-4); }
+  .paymentPanel { padding: var(--space-4); }
+  .sepayCheckoutBox { grid-template-columns: 150px minmax(0, 1fr); }
+  .sepayFieldValue { min-width: 0; }
+  .sepayFieldValue > span { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 480px) {
+  .bookingModalBackdrop { padding: 0; }
+  .bookingModal { height: 100dvh; max-height: 100dvh; border-radius: 0; border: none; }
+  .bookingFormFooter { flex-direction: column; align-items: stretch; gap: 10px; }
+  .bookingFormFooter .bookNowBtn { width: 100%; }
+  .sepayCheckoutBox { grid-template-columns: 1fr; }
+  .paymentActions .secondaryBookingButton { width: 100%; }
 }
 
 .loadingContainer {

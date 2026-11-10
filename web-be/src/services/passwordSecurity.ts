@@ -41,7 +41,7 @@ const getPwnedPasswordCount = async (password: string) => {
     response = await fetch(`${PWNED_PASSWORDS_URL}/${prefix}`, {
       headers: {
         'Add-Padding': 'true',
-        'User-Agent': 'TourAI-Password-Security/1.0',
+        'User-Agent': 'Vivu-Password-Security/1.0',
       },
       signal: AbortSignal.timeout(5000),
     });

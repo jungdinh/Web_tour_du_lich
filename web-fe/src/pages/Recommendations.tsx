@@ -7,11 +7,35 @@ import { useTourImagesReady } from '@/hooks/useTourImagesReady'
 import type { Tour, Recommendation } from '@/types'
 import styles from './Recommendations.module.css'
 
+const getMatchPresentation = (score: number, evidenceCount: number) => {
+  if (evidenceCount < 5) {
+    return {
+      badge: 'G\u1ee3i \u00fd kh\u1edfi \u0111\u1ea7u',
+      detail: 'Vivu ch\u01b0a c\u00f3 \u0111\u1ee7 t\u01b0\u01a1ng t\u00e1c \u0111\u1ec3 \u01b0\u1edbc t\u00ednh ph\u1ea7n tr\u0103m \u0111\u00e1ng tin c\u1eady.',
+    }
+  }
+  const similarity = Math.min(92, Math.max(55, Math.round(score * 20) * 5))
+  const label = score >= 0.82 ? 'R\u1ea5t ph\u00f9 h\u1ee3p' : score >= 0.65 ? 'Kh\u00e1 ph\u00f9 h\u1ee3p' : 'G\u1ee3i \u00fd kh\u00e1m ph\u00e1'
+  return {
+    badge: `${label} \u00b7 ${similarity}% t\u01b0\u01a1ng \u0111\u1ed3ng`,
+    detail: 'Ph\u1ea7n tr\u0103m l\u00e0 \u0111i\u1ec3m t\u01b0\u01a1ng \u0111\u1ed3ng \u01b0\u1edbc t\u00ednh, kh\u00f4ng ph\u1ea3i x\u00e1c su\u1ea5t b\u1ea1n s\u1ebd \u0111\u1eb7t tour.',
+  }
+}
+
+const getRecommendationReason = (item: Recommendation) => {
+  if (item.reason) return item.reason
+  const topTags = Object.entries(item.tags || {}).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([tag]) => tag)
+  return topTags.length
+    ? `G\u1ee3i \u00fd d\u1ef1a tr\u00ean s\u1edf th\u00edch ${topTags.join(', ')} v\u00e0 c\u00e1c t\u01b0\u01a1ng t\u00e1c g\u1ea7n \u0111\u00e2y.`
+    : 'G\u1ee3i \u00fd d\u1ef1a tr\u00ean m\u1ee9c \u0111\u1ed9 g\u1ea7n v\u1edbi s\u1edf th\u00edch v\u00e0 \u0111i\u1ec3m \u0111\u1ebfn b\u1ea1n \u0111\u00e3 quan t\u00e2m.'
+}
+
 export function RecommendationsPage() {
   const { token, user } = useAuthStore()
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [popularFallback, setPopularFallback] = useState<Tour[]>([])
   const [coldStart, setColdStart] = useState(false)
+  const [evidenceCount, setEvidenceCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -31,6 +55,7 @@ export function RecommendationsPage() {
 
       try {
         const res = await recommendationsPageApi.getAll(20)
+        setEvidenceCount(res.evidence_count || 0)
         if (res.is_cold_start) {
           setPopularFallback(res.popular || [])
           setColdStart(true)
@@ -118,16 +143,21 @@ export function RecommendationsPage() {
                 }
               : item
 
-            const matchScore = !coldStart && 'score' in item
-              ? `🎯 ${(item.score * 100).toFixed(0)}% Phù hợp`
+            const match = !coldStart && 'score' in item
+              ? getMatchPresentation(item.score, evidenceCount)
               : undefined
 
             return (
-              <TourCard
-                key={('tour_id' in item ? item.tour_id : item.id) || idx}
-                tour={tour}
-                badge={matchScore}
-              />
+              <div className={styles.recommendationItem} key={('tour_id' in item ? item.tour_id : item.id) || idx}>
+                <TourCard tour={tour} badge={match?.badge} />
+                {match && 'score' in item && (
+                  <div className={styles.reasonBox}>
+                    <strong>{'V\u00ec sao Vivu g\u1ee3i \u00fd?'}</strong>
+                    <span>{getRecommendationReason(item)}</span>
+                    <small>{match.detail}</small>
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>

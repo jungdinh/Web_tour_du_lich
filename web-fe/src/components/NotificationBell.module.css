@@ -44,6 +44,6 @@
 .state, .error { margin: 0; padding: 32px 20px; color: var(--color-text-secondary); font-size: .84rem; text-align: center; }
 .error { color: var(--color-error); }
 @media (max-width: 768px) {
-  .root { width: 100%; display: flex; justify-content: center; }
+  .root { width: auto; display: flex; justify-content: center; }
   .dropdown { position: fixed; top: 76px; right: 12px; left: 12px; width: auto; }
 }

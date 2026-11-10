@@ -15,10 +15,11 @@ import { bookingRouter } from './routes/bookings.js';
 import { paymentRouter } from './routes/payments.js';
 import { settingsRouter } from './routes/settings.js';
 import { notificationRouter } from './routes/notifications.js';
-import { ensureDefaultAdmin } from './services/adminSeed.js';
+import { ensureDefaultAdmin } from './defaultAdmin.js';
 import { pingDatabase } from './db/index.js';
 import { errorHandler } from './middlewares/error.js';
 import { rateLimiter } from './middlewares/rateLimit.js';
+import { uploadsRoot } from './uploadStorage.js';
 
 const app = express();
 const configuredPort = Number.parseInt(process.env.PORT || '4000', 10);
@@ -61,7 +62,7 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(express.json());
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(uploadsRoot));
 
 app.use(rateLimiter);
 

@@ -12,7 +12,8 @@
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "test:email": "npm run build && node --test tests/email.test.mjs"
+    "test:email": "npm run build && node --test tests/email.test.mjs",
+    "images:cache": "node scripts/cache-tour-images.mjs"
   },
   "dependencies": {
     "axios": "^1.7.2",

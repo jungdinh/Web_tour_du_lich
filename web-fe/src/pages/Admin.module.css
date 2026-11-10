@@ -1406,6 +1406,197 @@ td strong {
   background: var(--color-accent-subtle);
 }
 
+.compactTextField {
+  display: grid;
+  gap: .5rem;
+  min-width: 0;
+}
+
+.compactTextHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.compactTextHeader > div {
+  display: grid;
+  gap: .18rem;
+  min-width: 0;
+}
+
+.compactTextHeader strong {
+  color: var(--color-text);
+  font-size: .9rem;
+}
+
+.compactTextHeader small {
+  color: var(--color-text-muted);
+  font-size: .72rem;
+  font-weight: 500;
+}
+
+.compactTextEditButton {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  flex: 0 0 auto;
+  border: 0;
+  padding: .2rem 0;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: .74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.compactTextEditButton:hover {
+  text-decoration: underline;
+}
+
+.compactTextPreview {
+  width: 100%;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .8rem;
+  padding: .75rem .85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.compactTextPreview:hover,
+.compactTextPreview:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.compactTextValue,
+.compactTextPlaceholder {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  font-size: .82rem;
+  line-height: 1.45;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.compactTextPlaceholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.compactTextCount {
+  padding: .28rem .5rem;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: .68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.contentEditorBackdrop {
+  z-index: 420;
+  background: rgba(15, 23, 42, .58);
+  backdrop-filter: blur(2px);
+}
+
+.contentEditorModal {
+  width: min(780px, 100%);
+  max-height: calc(100vh - 2rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xl);
+}
+
+.contentEditorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.contentEditorHeader h2 {
+  margin: .18rem 0 .25rem;
+  color: var(--color-text);
+  font-size: 1.2rem;
+  letter-spacing: -.02em;
+}
+
+.contentEditorHeader p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: .8rem;
+}
+
+.contentEditorBody {
+  min-height: 0;
+  padding: 1rem 1.25rem;
+  background: var(--color-bg);
+}
+
+.contentEditorBody textarea {
+  width: 100%;
+  height: min(52vh, 480px);
+  min-height: 300px;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: .92rem;
+  line-height: 1.65;
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, .04);
+}
+
+.contentEditorBody textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.contentEditorFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .9rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.contentEditorFooter > span {
+  color: var(--color-text-muted);
+  font-size: .74rem;
+}
+
+.contentEditorFooter > div {
+  display: flex;
+  gap: .55rem;
+}
+
 .repeatableList {
   display: grid;
   gap: .6rem;
@@ -1451,9 +1642,34 @@ td strong {
 
 .scheduleRow {
   display: grid;
-  grid-template-columns: 1.2fr 1fr auto auto;
+  grid-template-columns: minmax(145px, 1.1fr) minmax(130px, 1fr) minmax(105px, .72fr) minmax(150px, 1fr) minmax(105px, auto) auto;
   align-items: center;
   gap: .55rem;
+}
+
+.scheduleCapacityField,
+.scheduleStatusField {
+  display: grid !important;
+  gap: .28rem;
+  color: var(--color-text-secondary);
+  font-size: .72rem !important;
+  font-weight: 700;
+}
+
+.scheduleSeatSummary {
+  display: grid;
+  gap: .12rem;
+  min-width: 105px;
+}
+
+.scheduleSeatSummary strong {
+  color: var(--color-primary);
+  font-size: .78rem;
+}
+
+.scheduleSeatSummary span {
+  color: var(--color-text-muted);
+  font-size: .7rem;
 }
 
 .checkboxLabel {
@@ -1483,6 +1699,13 @@ td strong {
   text-decoration: underline;
 }
 
+.removeButton:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: .55;
+  text-decoration: none;
+}
+
 @media (max-width: 768px) {
 
   .advancedGrid,
@@ -1494,6 +1717,46 @@ td strong {
   .optionalHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .compactTextPreview {
+    grid-template-columns: 1fr;
+    gap: .5rem;
+  }
+
+  .compactTextCount {
+    justify-self: start;
+  }
+
+  .contentEditorBackdrop {
+    padding: .5rem;
+  }
+
+  .contentEditorModal {
+    max-height: calc(100vh - 1rem);
+    border-radius: 10px;
+  }
+
+  .contentEditorHeader,
+  .contentEditorBody,
+  .contentEditorFooter {
+    padding-left: .85rem;
+    padding-right: .85rem;
+  }
+
+  .contentEditorBody textarea {
+    height: 55vh;
+    min-height: 240px;
+  }
+
+  .contentEditorFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contentEditorFooter > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }
 

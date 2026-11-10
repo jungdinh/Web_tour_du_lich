@@ -4,6 +4,7 @@ import { getClient, query } from '../db/index.js';
 import type { AuthRequest } from './auth.js';
 import NodeCache from 'node-cache';
 import { filterFutureScheduleRows } from '../utils/schedule.js';
+import { hydrateTourScheduleAvailability } from '../services/scheduleAvailability.js';
 
 const cache = new NodeCache();
 
@@ -150,7 +151,7 @@ const mapReview = (row: Record<string, unknown>) => {
     admin_reply: replyId ? {
       id: Number(replyId),
       content: String(replyContent || ''),
-      admin_name: String(replyAuthor || 'TourAI'),
+      admin_name: String(replyAuthor || 'Vivu'),
       created_at: String(replyCreatedAt),
       updated_at: String(replyUpdatedAt || replyCreatedAt),
     } : null,
@@ -174,7 +175,7 @@ const reviewSelect = `
 
 const reviewSelectWithoutReplies = `
   SELECT r.id, r.content, r.rating,
-         COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
+         COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(r.reviewer_name), ''), 'Khách du lịch') AS reviewer_name,
          r.user_id, r.created_at, r.updated_at,
          r.updated_at AS activity_at,
          NULL::int AS admin_reply_id,
@@ -187,7 +188,7 @@ const reviewSelectWithoutReplies = `
 
 const legacyReviewSelect = `
   SELECT r.id, r.content, r.rating,
-         COALESCE(NULLIF(TRIM(r.reviewer_name), ''), 'KhÃ¡ch du lá»‹ch') AS reviewer_name,
+         COALESCE(NULLIF(TRIM(r.reviewer_name), ''), 'Khách du lịch') AS reviewer_name,
          NULL::int AS user_id, r.created_at, r.created_at AS updated_at,
          r.created_at AS activity_at,
          NULL::int AS admin_reply_id,
@@ -362,8 +363,9 @@ export const getTours = async (req: Request, res: Response) => {
       params
     );
 
+    const tours = await hydrateTourScheduleAvailability(result.rows.map((tour) => mapTourSchedule(tour)));
     res.json({
-      data: result.rows.map((tour) => mapTourSchedule(tour)),
+      data: tours,
       pagination: {
         page: Number(page),
         limit: l,
@@ -384,7 +386,10 @@ export const getTourById = async (req: Request, res: Response) => {
     const cached = cache.get(cacheKey);
     
     if (cached) {
-      return res.json(mapTourSchedule(cached as Record<string, unknown>));
+      const [tour] = await hydrateTourScheduleAvailability([
+        mapTourSchedule(cached as Record<string, unknown>) as unknown as Record<string, unknown> & { id: number },
+      ]);
+      return res.json(tour);
     }
     
     const result = await query(
@@ -411,7 +416,10 @@ export const getTourById = async (req: Request, res: Response) => {
     
     cache.set(cacheKey, tour, 1800);
     
-    res.json(tour);
+    const [tourWithAvailability] = await hydrateTourScheduleAvailability([
+      tour as Record<string, unknown> & { id: number },
+    ]);
+    res.json(tourWithAvailability);
   } catch (error) {
     console.error('Get tour error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -464,7 +472,9 @@ export const getSimilarTours = async (req: Request, res: Response) => {
     const cached = cache.get(cacheKey);
 
     if (cached) {
-      return res.json(cached);
+      return res.json(await hydrateTourScheduleAvailability(
+        cached as Array<Record<string, unknown> & { id: number }>,
+      ));
     }
 
     const targetResult = await query(
@@ -523,7 +533,7 @@ export const getSimilarTours = async (req: Request, res: Response) => {
     });
 
     cache.set(cacheKey, similarTours, 1800);
-    return res.json(similarTours);
+    return res.json(await hydrateTourScheduleAvailability(similarTours));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.flatten() });

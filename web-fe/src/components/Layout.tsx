@@ -41,7 +41,11 @@ export function Layout() {
   const location = useLocation()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  )
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const mobileDrawerCloseRef = useRef<HTMLButtonElement>(null)
 
   const isChatPage = location.pathname === '/chat'
   const isAdminPage = location.pathname.startsWith('/admin')
@@ -50,6 +54,15 @@ export function Layout() {
     setIsMobileMenuOpen(false)
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [location.pathname])
+
+  useEffect(() => {
+    const mobileViewport = window.matchMedia('(max-width: 768px)')
+    const handleViewportChange = (event: MediaQueryListEvent) => setIsMobileViewport(event.matches)
+
+    setIsMobileViewport(mobileViewport.matches)
+    mobileViewport.addEventListener('change', handleViewportChange)
+    return () => mobileViewport.removeEventListener('change', handleViewportChange)
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -61,6 +74,26 @@ export function Layout() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleKeyDown)
+    mobileDrawerCloseRef.current?.focus()
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMobileMenuOpen])
 
   const handleLogout = () => {
     logout()
@@ -77,16 +110,57 @@ export function Layout() {
           <Link to="/" className={styles.logo} aria-label="Vivu - Trang chủ">
             <img src="/logo.png" alt="Vivu" className={styles.logoIcon} />
           </Link>
-          
-          <button 
-            className={styles.mobileMenuBtn} 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
 
-          <nav className={`${styles.nav} ${isMobileMenuOpen ? styles.navOpen : ''}`}>
+          <div className={styles.headerActions}>
+            {user && isMobileViewport && (
+              <div className={styles.headerNotification}>
+                <NotificationBell />
+              </div>
+            )}
+            <button
+              type="button"
+              className={styles.mobileMenuBtn}
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Mở menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-navigation"
+            >
+              <Menu size={24} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className={`${styles.mobileMenuBackdrop} ${isMobileMenuOpen ? styles.mobileMenuBackdropOpen : ''}`}
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Đóng menu"
+            tabIndex={isMobileMenuOpen ? 0 : -1}
+          />
+
+          <nav
+            id="mobile-navigation"
+            className={`${styles.nav} ${isMobileMenuOpen ? styles.navOpen : ''}`}
+            aria-label="Điều hướng chính"
+          >
+            <div className={styles.mobileDrawerHeader}>
+              <Link
+                to="/"
+                className={styles.mobileDrawerLogo}
+                aria-label="Vivu - Trang chủ"
+              >
+                <img src="/logo.png" alt="Vivu" />
+              </Link>
+              <button
+                ref={mobileDrawerCloseRef}
+                type="button"
+                className={styles.mobileDrawerClose}
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Đóng menu"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
             <div className={styles.navPrimary}>
               {!isAdminPage && (
                 <>
@@ -106,7 +180,7 @@ export function Layout() {
                   </Link>
                   <Link
                     to="/chat"
-                    className={`${styles.navLink} ${styles.navLinkAi} ${location.pathname === '/chat' ? styles.navLinkActive : ''}`}
+                    className={`${styles.navLink} ${location.pathname === '/chat' ? styles.navLinkActive : ''}`}
                   >
                     <Sparkles size={18} className={styles.navLinkIcon} aria-hidden="true" />
                     <span>{TEXT.aiConsult}</span>
@@ -123,25 +197,28 @@ export function Layout() {
 
               {user ? (
                 <>
-                  <div className={styles.navActionItem}>
-                    <NotificationBell />
-                    <span className={styles.navActionLabel}>{TEXT.notifications}</span>
-                  </div>
-                  <div className={`${styles.userMenu} ${styles.navActionItem}`} ref={userMenuRef}>
-                    <button
-                      type="button"
-                      className={styles.userMenuButton}
-                      onClick={() => setIsUserMenuOpen((open) => !open)}
-                      aria-haspopup="menu"
-                      aria-expanded={isUserMenuOpen}
-                    >
-                      <span className={styles.avatar}>{userInitial}</span>
-                      <span className={styles.userName}>{user.name}</span>
-                      <span className={styles.chevron}>{TEXT.chevron}</span>
-                    </button>
+                  <div className={styles.userMenu} ref={userMenuRef}>
+                    <div className={`${styles.userMenuTrigger} ${styles.navActionItem}`}>
+                      <button
+                        type="button"
+                        className={styles.userMenuButton}
+                        onClick={() => setIsUserMenuOpen((open) => !open)}
+                        aria-haspopup="menu"
+                        aria-expanded={isUserMenuOpen}
+                        aria-controls="user-account-menu"
+                      >
+                        <span className={styles.avatar}>{userInitial}</span>
+                        <span className={styles.userName}>{user.name}</span>
+                        <span className={styles.chevron}>{TEXT.chevron}</span>
+                      </button>
+                      <span className={styles.navActionLabel}>{TEXT.account}</span>
+                    </div>
 
-                    {isUserMenuOpen && (
-                      <div className={styles.userDropdown} role="menu">
+                    <div
+                      id="user-account-menu"
+                      className={`${styles.userDropdown} ${isUserMenuOpen ? styles.userDropdownOpen : ''}`}
+                      role="menu"
+                    >
                         {user.role === 'admin' ? (
                           <Link to="/admin" className={styles.dropdownItem} onClick={() => setIsUserMenuOpen(false)}>
                             <span><Icons.Admin /></span>
@@ -175,10 +252,14 @@ export function Layout() {
                           <span><Icons.Logout /></span>
                           {TEXT.logout}
                         </button>
-                      </div>
-                    )}
-                    <span className={styles.navActionLabel}>{TEXT.account}</span>
+                    </div>
                   </div>
+                  {!isMobileViewport && (
+                    <div className={styles.navActionItem}>
+                      <NotificationBell />
+                      <span className={styles.navActionLabel}>{TEXT.notifications}</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className={styles.navGuestActions}>

@@ -2,7 +2,14 @@ export interface ScheduleRow {
   date: string;
   price: number;
   available: boolean;
+  status: ScheduleStatus;
+  capacity: number | null;
+  booked_count: number;
+  remaining_count: number | null;
 }
+
+export const scheduleStatuses = ['open', 'paused', 'closed', 'cancelled'] as const;
+export type ScheduleStatus = typeof scheduleStatuses[number];
 
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SLASH_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
@@ -58,13 +65,25 @@ const toScheduleRow = (value: unknown): ScheduleRow | null => {
   if (!date) return null;
 
   const parsedPrice = Number(row.price);
-  const available = row.available === undefined || row.available === null
+  const legacyAvailable = row.available === undefined || row.available === null
     ? true
     : row.available === true || row.available === 'true';
+  const status = scheduleStatuses.includes(row.status as ScheduleStatus)
+    ? row.status as ScheduleStatus
+    : legacyAvailable ? 'open' : 'closed';
+  const parsedCapacity = Number(row.capacity);
+  const capacity = Number.isSafeInteger(parsedCapacity) && parsedCapacity > 0 ? parsedCapacity : null;
+  const parsedBookedCount = Number(row.booked_count);
+  const bookedCount = Number.isSafeInteger(parsedBookedCount) && parsedBookedCount > 0 ? parsedBookedCount : 0;
+  const remainingCount = capacity === null ? null : Math.max(0, capacity - bookedCount);
   return {
     date,
     price: Number.isSafeInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
-    available,
+    status,
+    capacity,
+    booked_count: bookedCount,
+    remaining_count: remainingCount,
+    available: status === 'open' && (remainingCount === null || remainingCount > 0),
   };
 };
 
@@ -89,3 +108,18 @@ export const filterFutureScheduleRows = (value: unknown, now = new Date()): Sche
     })
     .sort((left, right) => left.date.localeCompare(right.date));
 };
+
+export const applyScheduleBookingCounts = (
+  value: unknown,
+  bookingCounts: ReadonlyMap<string, number>,
+  now = new Date(),
+): ScheduleRow[] => filterFutureScheduleRows(value, now).map((row) => {
+  const bookedCount = Math.max(0, bookingCounts.get(row.date) || 0);
+  const remainingCount = row.capacity === null ? null : Math.max(0, row.capacity - bookedCount);
+  return {
+    ...row,
+    booked_count: bookedCount,
+    remaining_count: remainingCount,
+    available: row.status === 'open' && (remainingCount === null || remainingCount > 0),
+  };
+});

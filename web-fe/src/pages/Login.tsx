@@ -78,7 +78,7 @@ export function LoginPage() {
             <div className={styles.passwordInputWrap}>
               <input
                 id="password"
-                type={showPassword ? 'text' : 'text'}
+                type={showPassword ? 'text' : 'password'}
                 className={!showPassword ? styles.fakePassword : ''}
                 autoComplete="current-password"
                 value={password}
@@ -96,6 +96,7 @@ export function LoginPage() {
               </button>
             </div>
           </div>
+          <div className={styles.forgotPasswordRow}><Link to="/forgot-password">Quên mật khẩu?</Link></div>
           
           <button type="submit" className={styles.submitBtn} disabled={loading}>
             {loading ? 'Đang xử lý...' : 'Đăng nhập'}

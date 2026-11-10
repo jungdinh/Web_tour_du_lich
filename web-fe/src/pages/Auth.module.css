@@ -225,6 +225,9 @@
   margin-bottom: var(--space-4);
 }
 
+.forgotPasswordRow { display: flex; justify-content: flex-end; margin-top: -0.35rem; }
+.forgotPasswordRow a { color: var(--color-accent); font-size: 0.875rem; font-weight: 700; }
+
 .secondaryAuthButton {
   padding: var(--space-3);
   background: transparent;

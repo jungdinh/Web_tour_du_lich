@@ -3,14 +3,16 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
-import { query } from '../db/index.js';
-import { sendVerificationEmail } from '../services/email.js';
+import { getClient, query } from '../db/index.js';
+import { sendVerificationEmail } from '../verificationEmail.js';
+import { sendPasswordResetEmail } from '../passwordResetEmail.js';
 import { assertStrongPassword, PasswordSecurityError } from '../services/passwordSecurity.js';
 import { z } from 'zod';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'];
 const verificationMinutes = Math.max(5, Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES || 10));
+const passwordResetMinutes = Math.max(5, Number(process.env.PASSWORD_RESET_EXPIRES_MINUTES || 10));
 const verificationSecret = process.env.EMAIL_VERIFICATION_SECRET || JWT_SECRET;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -33,6 +35,15 @@ const verificationSchema = z.object({
 
 const googleLoginSchema = z.object({
   credential: z.string().trim().min(1).max(10000),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email('Email kh?ng h?p l?').max(255).transform((value) => value.toLowerCase()),
+});
+
+const resetPasswordSchema = forgotPasswordSchema.extend({
+  code: z.string().trim().regex(/^\d{6}$/, 'M\u00e3 \u0111\u1eb7t l\u1ea1i g\u1ed3m 6 ch\u1eef s\u1ed1'),
+  password: z.string().min(1, 'Vui l?ng nh?p m?t kh?u m?i'),
 });
 
 export interface AuthUser { id: number; name: string; email: string; role: string }
@@ -203,6 +214,109 @@ export const resendVerification = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
     console.error('Resend verification error:', error);
     return res.status(500).json({ error: 'Không thể gửi lại mã xác minh.' });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  const genericMessage = 'N\u1ebfu email t\u1ed3n t\u1ea1i, Vivu \u0111\u00e3 g\u1eedi m\u00e3 \u0111\u1eb7t l\u1ea1i m\u1eadt kh\u1ea9u.';
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    const userResult = await query(
+      'SELECT id, name, email FROM users WHERE email = $1 AND is_active = TRUE',
+      [email],
+    );
+    if (!userResult.rows.length) return res.json({ message: genericMessage });
+
+    const user = userResult.rows[0];
+    const recent = await query(
+      `SELECT id FROM password_reset_codes
+       WHERE user_id = $1 AND created_at > NOW() - INTERVAL '60 seconds'
+       ORDER BY created_at DESC LIMIT 1`,
+      [user.id],
+    );
+    if (recent.rows.length) {
+      return res.status(429).json({ error: 'B\u1ea1n v\u1eeba y\u00eau c\u1ea7u m\u00e3. Vui l\u00f2ng th\u1eed l\u1ea1i sau 60 gi\u00e2y.' });
+    }
+
+    const code = crypto.randomInt(100000, 1000000).toString();
+    await query(
+      `INSERT INTO password_reset_codes (user_id, code_hash, expires_at)
+       VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 minute'))`,
+      [user.id, hashVerificationCode(user.id, code), passwordResetMinutes],
+    );
+    await sendPasswordResetEmail({ to: user.email, name: user.name, code });
+    return res.json({ message: genericMessage });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
+    console.error('Forgot password error:', error);
+    return res.status(503).json({ error: 'Kh\u00f4ng th\u1ec3 g\u1eedi m\u00e3 \u0111\u1eb7t l\u1ea1i m\u1eadt kh\u1ea9u l\u00fac n\u00e0y. Vui l\u00f2ng th\u1eed l\u1ea1i sau.' });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, code, password } = resetPasswordSchema.parse(req.body);
+    await assertStrongPassword(password);
+    const userResult = await query(
+      'SELECT id FROM users WHERE email = $1 AND is_active = TRUE',
+      [email],
+    );
+    if (!userResult.rows.length) return res.status(400).json({ error: 'M\u00e3 \u0111\u1eb7t l\u1ea1i kh\u00f4ng h\u1ee3p l\u1ec7 ho\u1eb7c \u0111\u00e3 h\u1ebft h\u1ea1n.' });
+
+    const userId = Number(userResult.rows[0].id);
+    const codeResult = await query(
+      `SELECT id, code_hash, expires_at, attempts
+       FROM password_reset_codes
+       WHERE user_id = $1 AND consumed_at IS NULL
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId],
+    );
+    if (!codeResult.rows.length || new Date(codeResult.rows[0].expires_at).getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'M\u00e3 \u0111\u1eb7t l\u1ea1i kh\u00f4ng h\u1ee3p l\u1ec7 ho\u1eb7c \u0111\u00e3 h\u1ebft h\u1ea1n.' });
+    }
+
+    const record = codeResult.rows[0];
+    if (Number(record.attempts) >= 5) {
+      return res.status(429).json({ error: 'B\u1ea1n \u0111\u00e3 nh\u1eadp sai qu\u00e1 nhi\u1ec1u l\u1ea7n. Vui l\u00f2ng y\u00eau c\u1ea7u m\u00e3 m\u1edbi.' });
+    }
+    const expected = Buffer.from(record.code_hash);
+    const actual = Buffer.from(hashVerificationCode(userId, code));
+    if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+      await query('UPDATE password_reset_codes SET attempts = attempts + 1 WHERE id = $1', [record.id]);
+      return res.status(400).json({ error: 'M\u00e3 \u0111\u1eb7t l\u1ea1i kh\u00f4ng \u0111\u00fang.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE users
+         SET password_hash = $1,
+             auth_provider = CASE WHEN google_sub IS NULL THEN 'local' ELSE 'both' END,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [passwordHash, userId],
+      );
+      await client.query(
+        'UPDATE password_reset_codes SET consumed_at = NOW() WHERE user_id = $1 AND consumed_at IS NULL',
+        [userId],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return res.json({ message: 'M\u1eadt kh\u1ea9u \u0111\u00e3 \u0111\u01b0\u1ee3c c\u1eadp nh\u1eadt. B\u1ea1n c\u00f3 th\u1ec3 \u0111\u0103ng nh\u1eadp l\u1ea1i.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.flatten() });
+    if (error instanceof PasswordSecurityError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
+    console.error('Reset password error:', error);
+    return res.status(500).json({ error: 'Kh\u00f4ng th\u1ec3 \u0111\u1eb7t l\u1ea1i m\u1eadt kh\u1ea9u.' });
   }
 };
 

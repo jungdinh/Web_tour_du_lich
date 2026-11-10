@@ -13,6 +13,10 @@ import {
 } from '../services/sepay.js';
 import type { SepayCheckout } from '../services/sepay.js';
 import { isFutureScheduleDate, normalizeScheduleDate, normalizeScheduleRows } from '../utils/schedule.js';
+import { loadReservedGuestCountsForTour } from '../services/scheduleAvailability.js';
+
+const normalizeVietnamesePhone = (value: string) => value.replace(/[\s().-]/g, '');
+const vietnameseMobilePattern = /^(?:\+84|0)(?:3|5|7|8|9)\d{8}$/;
 
 const createBookingSchema = z.object({
   tour_id: z.coerce.number().int().positive(),
@@ -20,7 +24,9 @@ const createBookingSchema = z.object({
   guest_count: z.coerce.number().int().min(1).max(20),
   contact_name: z.string().trim().min(2).max(255),
   contact_email: z.string().trim().email().max(255),
-  contact_phone: z.string().trim().min(8).max(30).regex(/^[0-9+().\s-]+$/),
+  contact_phone: z.string().trim().min(8).max(30)
+    .transform(normalizeVietnamesePhone)
+    .refine((value) => vietnameseMobilePattern.test(value), 'S\u1ed1 \u0111i\u1ec7n tho\u1ea1i Vi\u1ec7t Nam kh\u00f4ng h\u1ee3p l\u1ec7.'),
   note: z.string().trim().max(1000).optional().default(''),
 });
 
@@ -224,7 +230,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
     await client.query('BEGIN');
     const tourResult = await client.query(
       `SELECT id, name, destination, price, schedule
-       FROM tours WHERE id = $1 FOR SHARE`,
+       FROM tours WHERE id = $1 FOR UPDATE`,
       [input.tour_id],
     );
     if (!tourResult.rows.length) {
@@ -239,9 +245,23 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Ngày khởi hành không nằm trong lịch của tour.' });
     }
-    if (!selectedSchedule.available) {
+    if (selectedSchedule.status !== 'open') {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Ngày khởi hành này hiện đã hết chỗ.' });
+    }
+
+    const bookedCounts = await loadReservedGuestCountsForTour(client, tour.id);
+    const bookedCount = bookedCounts.get(departureDate) || 0;
+    const remainingCount = selectedSchedule.capacity === null
+      ? null
+      : Math.max(0, selectedSchedule.capacity - bookedCount);
+    if (remainingCount !== null && input.guest_count > remainingCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: remainingCount > 0
+          ? `Ngày khởi hành này chỉ còn ${remainingCount} chỗ.`
+          : 'Ngày khởi hành này hiện đã hết chỗ.',
+      });
     }
 
     const unitPrice = Number(tour.price);
@@ -490,6 +510,22 @@ export const handleSepayWebhook = async (req: Request, res: Response) => {
       return res.json({ success: true, message: 'Booking already paid.' });
     }
 
+    await client.query('SELECT id FROM tours WHERE id = $1 FOR UPDATE', [booking.tour_id]);
+    if (booking.payment_status !== 'pending' || booking.status !== 'pending_payment') {
+      await client.query('COMMIT');
+      return res.json({ success: false, message: 'Booking is not awaiting payment.' });
+    }
+    const expiresAt = new Date(booking.expires_at).getTime();
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      await client.query(
+        `UPDATE bookings SET status = 'expired', updated_at = NOW()
+         WHERE id = $1 AND payment_status = 'pending'`,
+        [booking.id],
+      );
+      await client.query('COMMIT');
+      return res.json({ success: false, message: 'Booking has expired.' });
+    }
+
     const requiredAmount = Number(booking.total_amount);
     if (payload.transferAmount < requiredAmount) {
       await client.query('ROLLBACK');
@@ -649,6 +685,8 @@ export const handleSepayGatewayIpn = async (req: Request, res: Response) => {
       transactionStarted = false;
       return res.json({ success: true, message: 'Booking already paid.' });
     }
+
+    await client.query('SELECT id FROM tours WHERE id = $1 FOR UPDATE', [booking.tour_id]);
 
     if (booking.payment_status !== 'pending' || booking.status !== 'pending_payment') {
       await client.query('COMMIT');

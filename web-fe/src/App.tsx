@@ -14,6 +14,7 @@ import { RecommendationsPage } from './pages/Recommendations'
 import { AdminPage } from './pages/Admin'
 import { PaymentResultPage } from './pages/PaymentResult'
 import { SettingsPage } from './pages/Settings'
+import { ForgotPasswordPage } from './pages/ForgotPassword'
 
 export default function App() {
   const { token } = useAuthStore()
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="tours/:id" element={<TourDetailPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="profile" element={token ? <ProfilePage /> : <LoginPage />} />
         <Route path="bookings" element={token ? <BookingsPage /> : <LoginPage />} />

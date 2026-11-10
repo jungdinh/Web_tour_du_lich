@@ -47,6 +47,10 @@ export interface ScheduleRow {
   date: string
   price: number
   available: boolean
+  status?: 'open' | 'paused' | 'closed' | 'cancelled'
+  capacity?: number | null
+  booked_count?: number
+  remaining_count?: number | null
 }
 
 export interface BestPriceTourRaw {
@@ -137,6 +141,15 @@ export interface Recommendation {
   reason?: string
 }
 
+export interface RecommendationResponse {
+  recommendations: Recommendation[]
+  popular?: Tour[]
+  is_cold_start?: boolean
+  fallback?: boolean
+  evidence_count?: number
+  message?: string
+}
+
 export interface ChatMessage {
   id: number
   role: 'user' | 'assistant'
@@ -176,6 +189,13 @@ export interface AdminDashboard {
     bookings?: number
     revenue?: number
     paid_bookings?: number
+    pending_bookings?: number
+    expired_bookings?: number
+    failed_payments?: number
+    users_last_7d?: number
+    ai_messages_24h?: number
+    bookings_last_7d?: number
+    revenue_last_7d?: number
   }
   top_destinations: Array<{ destination: string; count: number }>
   recent_users: Array<Pick<User, 'id' | 'name' | 'email' | 'role'> & { created_at: string }>
@@ -235,6 +255,7 @@ export interface AdminCustomerReview {
   tour_id: number
   tour_name: string
   destination: string
+  category?: string
   user_id: number
   user_name: string
   user_email: string

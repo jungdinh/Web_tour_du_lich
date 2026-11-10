@@ -225,7 +225,7 @@ export function HomePage() {
             </nav>
 
             {heroFloatingTours.length > 0 && (
-              <div className={styles.mobileDestinationRail} aria-label="Diem den noi bat">
+              <div className={styles.mobileDestinationRail} aria-label="Điểm đến nổi bật">
                 {heroFloatingTours.map((tour) => (
                   <Link
                     key={tour.id}

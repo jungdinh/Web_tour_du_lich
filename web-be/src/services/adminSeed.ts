@@ -5,7 +5,7 @@ import { assertStrongPassword } from './passwordSecurity.js';
 export const ensureDefaultAdmin = async () => {
   const email = (process.env.ADMIN_EMAIL || 'admin123@gmail.com').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD?.trim() || '';
-  const name = process.env.ADMIN_NAME || 'TourAI Admin';
+  const name = process.env.ADMIN_NAME || 'Vivu Admin';
   const syncPassword = process.env.ADMIN_SYNC_PASSWORD === 'true';
 
   if (!email || !password) {

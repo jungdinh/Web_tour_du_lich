@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminBooking, AdminBookingDetail, AdminCustomerReview, AdminDashboard, AdminUser, Booking, Tour, PaginatedResponse, Review, User, DestinationSuggestion, SettingsData, Tag, NotificationItem, CreateNotificationPayload } from '@/types'
+import type { AdminBooking, AdminBookingDetail, AdminCustomerReview, AdminDashboard, AdminUser, Booking, Tour, PaginatedResponse, RecommendationResponse, Review, User, DestinationSuggestion, SettingsData, Tag, NotificationItem, CreateNotificationPayload } from '@/types'
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env
 const normalizeApiBaseURL = (value: string) => {
@@ -111,6 +111,14 @@ export const authApi = {
   },
   resendVerification: async (email: string) => {
     const { data } = await api.post<{ message: string }>('/auth/resend-verification', { email })
+    return data
+  },
+  requestPasswordReset: async (email: string) => {
+    const { data } = await api.post<{ message: string }>('/auth/forgot-password', { email })
+    return data
+  },
+  resetPassword: async (email: string, code: string, password: string) => {
+    const { data } = await api.post<{ message: string }>('/auth/reset-password', { email, code, password })
     return data
   },
   getProfile: async () => {
@@ -225,7 +233,7 @@ export const tourApi = {
 export const recommendationApi = {
   getRecommendations: async (top = 10, filters?: Record<string, unknown>) => {
     const { data } = await api.get('/recommendations', { params: { top, ...filters } })
-    return sanitizeRecommendationPayload(data)
+    return sanitizeRecommendationPayload(data as unknown as Record<string, unknown>) as unknown as RecommendationResponse
   },
 }
 
@@ -246,14 +254,14 @@ export const actionApi = {
 }
 
 export const chatApi = {
-  sendMessage: async (message: string, sessionId?: number) => {
+  sendMessage: async (message: string, sessionId?: number, signal?: AbortSignal) => {
     const { data } = await api.post<{
       message: string
       is_complete: boolean
       recommendations: Tour[] | null
       destination_suggestions?: DestinationSuggestion[]
       session_id: number
-    }>('/chat', { message, session_id: sessionId })
+    }>('/chat', { message, session_id: sessionId }, { signal, timeout: 45000 })
     return {
       ...data,
       recommendations: data.recommendations ? sanitizeTours(data.recommendations) : null,
@@ -325,10 +333,10 @@ export const favoriteApi = {
 
 export const recommendationsPageApi = {
   getAll: async (top = 20, filters?: Record<string, unknown>) => {
-    const { data } = await api.get('/recommendations', {
+    const { data } = await api.get<RecommendationResponse>('/recommendations', {
       params: { top, ...filters },
     })
-    return sanitizeRecommendationPayload(data)
+    return sanitizeRecommendationPayload(data as unknown as Record<string, unknown>) as unknown as RecommendationResponse
   },
 }
 

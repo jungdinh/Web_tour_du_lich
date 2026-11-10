@@ -16,6 +16,16 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
     if (minPrice) filters.min_price = Number(minPrice);
     if (maxPrice) filters.max_price = Number(maxPrice);
     if (duration) filters.duration = Number(duration);
+
+    const evidenceResult = await query(
+      `SELECT (
+         (SELECT COUNT(*) FROM user_actions WHERE user_id = $1) +
+         (SELECT COUNT(*) FROM favorites WHERE user_id = $1) +
+         (SELECT COUNT(*) FROM user_preferences WHERE user_id = $1)
+       )::int AS evidence_count`,
+      [userId],
+    );
+    const evidenceCount = Number(evidenceResult.rows[0]?.evidence_count || 0);
     
     const response = await axios.post(
       `${AI_SERVICE_URL}/ai/recommend`,
@@ -43,10 +53,11 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
         recommendations: response.data.recommendations,
         popular: popular.rows,
         is_cold_start: true,
+        evidence_count: evidenceCount,
       });
     }
     
-    res.json(response.data);
+    res.json({ ...response.data, evidence_count: evidenceCount });
   } catch (error) {
     console.error('Recommendation error:', error);
     
@@ -59,6 +70,8 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
       return res.json({
         recommendations: popular.rows,
         fallback: true,
+        is_cold_start: true,
+        evidence_count: 0,
         message: 'AI service unavailable or timed out, showing popular tours',
       });
     }

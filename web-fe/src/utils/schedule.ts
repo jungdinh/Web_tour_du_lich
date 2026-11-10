@@ -57,7 +57,24 @@ export const getFutureScheduleRows = (rows?: ScheduleRow[]) => {
   return (rows || [])
     .flatMap((row) => {
       const date = normalizeScheduleDate(row.date)
-      return date ? [{ ...row, date }] : []
+      if (!date) return []
+      const status = row.status || (row.available === false ? 'closed' : 'open')
+      const capacity = Number.isSafeInteger(row.capacity) && Number(row.capacity) > 0
+        ? Number(row.capacity)
+        : null
+      const bookedCount = Number.isSafeInteger(row.booked_count) && Number(row.booked_count) > 0
+        ? Number(row.booked_count)
+        : 0
+      const remainingCount = capacity === null ? null : Math.max(0, capacity - bookedCount)
+      return [{
+        ...row,
+        date,
+        status,
+        capacity,
+        booked_count: bookedCount,
+        remaining_count: remainingCount,
+        available: status === 'open' && (remainingCount === null || remainingCount > 0),
+      }]
     })
     .filter((row) => row.date > today)
     .filter((row) => {

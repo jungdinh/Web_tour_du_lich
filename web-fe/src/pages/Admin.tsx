@@ -39,6 +39,13 @@ import { getFutureScheduleRows, getNextAvailableScheduleDate, getTomorrowIsoDate
 type AdminTab = 'overview' | 'tours' | 'users' | 'bookings' | 'reviews' | 'notifications'
 type TourFilters = { destination: string; travelType: 'all' | 'domestic' | 'international'; minPrice: string; maxPrice: string; duration: string }
 type TourForm = Pick<Tour, 'name' | 'destination' | 'price' | 'duration' | 'description' | 'image_url' | 'season' | 'duration_label' | 'original_price' | 'highlights' | 'places' | 'topics' | 'tags' | 'itinerary' | 'included' | 'excluded' | 'schedule' | 'transport'>
+type ContentEditorState = {
+  title: string
+  hint: string
+  placeholder: string
+  value: string
+  onSave: (value: string) => void
+}
 
 const MAX_TOUR_GALLERY_IMAGES = 60
 const tourTagCatalog = [
@@ -118,10 +125,41 @@ const emptyTour: TourForm = {
   transport: { airline: '', vehicle: [] },
 }
 
+const scheduleStatusOptions = [
+  { value: 'open', label: 'Đang nhận khách' },
+  { value: 'paused', label: 'Tạm ngừng nhận' },
+  { value: 'closed', label: 'Đã đóng lịch' },
+  { value: 'cancelled', label: 'Đã hủy lịch' },
+] as const
+
 const linesToArray = (value: string) => value.split('\n').map((line) => line.trim()).filter(Boolean)
 const arrayToLines = (value?: string[]) => (value || []).join('\n')
 const updateListField = (field: 'highlights' | 'places' | 'topics' | 'included' | 'excluded', value: string, setTourForm: React.Dispatch<React.SetStateAction<TourForm>>) => {
   setTourForm((current) => ({ ...current, [field]: linesToArray(value) }))
+}
+
+type CompactLongTextFieldProps = {
+  label: string
+  hint: string
+  value: string
+  placeholder: string
+  onOpen: () => void
+}
+
+function CompactLongTextField({ label, hint, value, placeholder, onOpen }: CompactLongTextFieldProps) {
+  const lineCount = linesToArray(value).length
+  return (
+    <div className={`${styles.fullField} ${styles.compactTextField}`}>
+      <div className={styles.compactTextHeader}>
+        <div><strong>{label}</strong><small>{hint}</small></div>
+        <button type="button" className={styles.compactTextEditButton} onClick={onOpen}><Pencil size={14} /> Chỉnh sửa</button>
+      </div>
+      <button type="button" className={styles.compactTextPreview} onClick={onOpen} aria-label={`Mở trình soạn thảo ${label}`}>
+        <span className={value.trim() ? styles.compactTextValue : styles.compactTextPlaceholder}>{value.trim() || placeholder}</span>
+        <span className={styles.compactTextCount}>{lineCount ? `${lineCount} dòng` : 'Chưa có nội dung'}</span>
+      </button>
+    </div>
+  )
 }
 
 const formatErrorValue = (value: unknown): string | null => {
@@ -260,6 +298,8 @@ export function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [contentEditor, setContentEditor] = useState<ContentEditorState | null>(null)
+  const [contentEditorDraft, setContentEditorDraft] = useState('')
 
   const userPasswordRequirements = [
     { label: 'Từ 12 đến 24 ký tự', met: newUserPassword.length >= 12 && newUserPassword.length <= 24 },
@@ -376,6 +416,15 @@ export function AdminPage() {
     }
   }, [notice, error])
 
+  useEffect(() => {
+    if (!contentEditor) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContentEditor(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [contentEditor])
+
   if (!user || user.role !== 'admin') return <Navigate to="/" replace />
   if (!matchedTab) return <Navigate to={adminTabPaths.overview} replace />
 
@@ -419,10 +468,22 @@ export function AdminPage() {
 
   const closeTourForm = () => {
     if (saving) return
+    setContentEditor(null)
     setTourFormOpen(false)
     setEditingTour(null)
     setTourForm(emptyTour)
     setTourImages([])
+  }
+
+  const openContentEditor = (editor: ContentEditorState) => {
+    setContentEditorDraft(editor.value)
+    setContentEditor(editor)
+  }
+
+  const saveContentEditor = () => {
+    if (!contentEditor) return
+    contentEditor.onSave(contentEditorDraft)
+    setContentEditor(null)
   }
 
   const startEdit = (tour: Tour) => {
@@ -478,7 +539,7 @@ export function AdminPage() {
   const addItineraryDay = () => {
     setTourForm((current) => ({
       ...current,
-      itinerary: [...(current.itinerary || []), { day: `Ng?y ${(current.itinerary || []).length + 1}`, content: [], meal: '', images: [] }],
+      itinerary: [...(current.itinerary || []), { day: `Ngày ${(current.itinerary || []).length + 1}`, content: [], meal: '', images: [] }],
     }))
   }
 
@@ -496,7 +557,15 @@ export function AdminPage() {
   const addScheduleRow = () => {
     setTourForm((current) => ({
       ...current,
-      schedule: [...(current.schedule || []), { date: getNextAvailableScheduleDate(current.schedule), price: current.price, available: true }],
+      schedule: [...(current.schedule || []), {
+        date: getNextAvailableScheduleDate(current.schedule),
+        price: current.price,
+        available: true,
+        status: 'open',
+        capacity: 30,
+        booked_count: 0,
+        remaining_count: 30,
+      }],
     }))
   }
 
@@ -513,6 +582,11 @@ export function AdminPage() {
   }
 
   const removeScheduleRow = (index: number) => {
+    const scheduleRow = tourForm.schedule?.[index]
+    if ((scheduleRow?.booked_count || 0) > 0) {
+      setError(`Không thể xóa lịch đang có ${scheduleRow?.booked_count} khách giữ chỗ. Bạn có thể chuyển lịch sang trạng thái tạm ngừng hoặc đã hủy.`)
+      return
+    }
     setTourForm((current) => ({ ...current, schedule: (current.schedule || []).filter((_, rowIndex) => rowIndex !== index) }))
   }
 
@@ -546,6 +620,12 @@ export function AdminPage() {
        }
        if (new Set(normalizedDates).size !== normalizedDates.length) {
          throw new Error('Ngày khởi hành không được trùng nhau.')
+       }
+       const invalidCapacityRow = scheduleRows.find((row) => row.capacity !== null
+         && row.capacity !== undefined
+         && row.capacity < (row.booked_count || 0))
+       if (invalidCapacityRow) {
+         throw new Error(`Sức chứa ngày ${invalidCapacityRow.date} không thể nhỏ hơn ${invalidCapacityRow.booked_count || 0} chỗ đã đặt.`)
        }
        const uploadedUrls = await Promise.all(tourImages.map((image) => image.file ? adminApi.uploadTourImage(image.file) : Promise.resolve(image.url)))
        const gallery = uploadedUrls.filter(Boolean)
@@ -749,7 +829,7 @@ export function AdminPage() {
             <span>Xem Website</span>
           </a>
         </div>
-        <div className={styles.sidebarFooter}><small>Dang dang nhap</small><strong>{user.name}</strong><span>{user.email}</span></div>
+        <div className={styles.sidebarFooter}><small>Đang đăng nhập</small><strong>{user.name}</strong><span>{user.email}</span></div>
       </aside>
 
       <main className={styles.workspace}>
@@ -986,6 +1066,7 @@ export function AdminPage() {
                     {tours?.data.map((tour) => {
                       const isSelected = selectedTours.includes(tour.id);
                       const futureSchedules = getFutureScheduleRows(tour.schedule);
+                      const openScheduleCount = futureSchedules.filter((row) => row.available).length;
                       return (
                         <tr key={tour.id} className={isSelected ? styles.selectedRow : undefined}>
                           {selectionMode && (
@@ -1036,8 +1117,8 @@ export function AdminPage() {
                             </div>
                           </td>
                           <td>
-                            <span className={futureSchedules.length > 0 ? styles.scheduleBadgeActive : styles.scheduleBadgeEmpty}>
-                              {futureSchedules.length > 0 ? `${futureSchedules.length} ngày mở bán` : 'Chưa có lịch'}
+                            <span className={openScheduleCount > 0 ? styles.scheduleBadgeActive : styles.scheduleBadgeEmpty}>
+                              {futureSchedules.length > 0 ? `${openScheduleCount}/${futureSchedules.length} ngày nhận khách` : 'Chưa có lịch'}
                             </span>
                           </td>
                           <td>
@@ -1096,7 +1177,7 @@ export function AdminPage() {
           
            {tab === 'tours' && tours && tours.pagination.totalPages > 1 && <div className={styles.pagination}>
              <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage - 1)} disabled={tourPage <= 1} aria-label="Trang trước"><ChevronLeft size={16} /></button>
-             <label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={tours.pagination.totalPages} value={tourPage} aria-label="Nh?p s? trang" onChange={(event) => { const page = Number(event.target.value); if (page >= 1) changeTourPage(page) }} /><span>/ {tours.pagination.totalPages}</span></label>
+             <label className={styles.pagePicker}><span>Trang</span><input className={styles.pageInput} type="number" min="1" max={tours.pagination.totalPages} value={tourPage} aria-label="Nhập số trang" onChange={(event) => { const page = Number(event.target.value); if (page >= 1) changeTourPage(page) }} /><span>/ {tours.pagination.totalPages}</span></label>
              <button type="button" className={styles.paginationArrow} onClick={() => changeTourPage(tourPage + 1)} disabled={tourPage >= tours.pagination.totalPages} aria-label="Trang sau"><ChevronRight size={16} /></button>
            </div>}
 
@@ -1333,9 +1414,9 @@ export function AdminPage() {
                       <p>Các yếu tố nổi bật, bao gồm và chưa bao gồm.</p>
                     </div>
                     <div className={styles.sectionContent}>
-                      <label className={styles.fullField}>Điểm nổi bật <small>Mỗi dòng một nội dung</small><textarea rows={4} value={arrayToLines(tourForm.highlights)} placeholder="Ví dụ: Tham quan Bà Nà Hills" onChange={(event) => updateListField('highlights', event.target.value, setTourForm)} /></label>
-                      <label className={styles.fullField}>Điểm tham quan <small>Mỗi dòng một địa điểm</small><textarea rows={3} value={arrayToLines(tourForm.places)} placeholder="Hội An / Bà Nà Hills" onChange={(event) => updateListField('places', event.target.value, setTourForm)} /></label>
-                      <label className={styles.fullField}>Chủ đề/trải nghiệm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.topics)} placeholder="Nghỉ dưỡng / Ẩm thực" onChange={(event) => updateListField('topics', event.target.value, setTourForm)} /></label>
+                      <CompactLongTextField label="Điểm nổi bật" hint="Mỗi dòng một nội dung" value={arrayToLines(tourForm.highlights)} placeholder="Ví dụ: Tham quan Bà Nà Hills" onOpen={() => openContentEditor({ title: 'Điểm nổi bật', hint: 'Nhập mỗi điểm nổi bật trên một dòng.', placeholder: 'Ví dụ: Tham quan Bà Nà Hills', value: arrayToLines(tourForm.highlights), onSave: (value) => updateListField('highlights', value, setTourForm) })} />
+                      <CompactLongTextField label="Điểm tham quan" hint="Mỗi dòng một địa điểm" value={arrayToLines(tourForm.places)} placeholder="Hội An / Bà Nà Hills" onOpen={() => openContentEditor({ title: 'Điểm tham quan', hint: 'Nhập mỗi địa điểm trên một dòng.', placeholder: 'Hội An\nBà Nà Hills', value: arrayToLines(tourForm.places), onSave: (value) => updateListField('places', value, setTourForm) })} />
+                      <CompactLongTextField label="Chủ đề/trải nghiệm" hint="Mỗi dòng một mục" value={arrayToLines(tourForm.topics)} placeholder="Nghỉ dưỡng / Ẩm thực" onOpen={() => openContentEditor({ title: 'Chủ đề và trải nghiệm', hint: 'Nhập mỗi chủ đề hoặc trải nghiệm trên một dòng.', placeholder: 'Nghỉ dưỡng\nẨm thực', value: arrayToLines(tourForm.topics), onSave: (value) => updateListField('topics', value, setTourForm) })} />
                       <div className={`${styles.fullField} ${styles.aiTagsField}`}>
                         <div className={styles.aiTagsHeader}>
                           <div><strong>Hashtag AI <span className={styles.req}>*</span></strong><small>Chọn đặc trưng để AI ghép tour với sở thích người dùng.</small></div>
@@ -1358,8 +1439,8 @@ export function AdminPage() {
                           })}
                         </div> : <p className={styles.aiTagsEmpty}>Cần chọn ít nhất một hashtag AI trước khi lưu tour.</p>}
                       </div>
-                      <label className={styles.fullField}>Đã bao gồm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.included)} placeholder="Xe đưa đón / Bữa ăn theo lịch trình" onChange={(event) => updateListField('included', event.target.value, setTourForm)} /></label>
-                      <label className={styles.fullField}>Chưa bao gồm <small>Mỗi dòng một mục</small><textarea rows={3} value={arrayToLines(tourForm.excluded)} placeholder="Chi phí cá nhân / Đồ uống" onChange={(event) => updateListField('excluded', event.target.value, setTourForm)} /></label>
+                      <CompactLongTextField label="Đã bao gồm" hint="Mỗi dòng một mục" value={arrayToLines(tourForm.included)} placeholder="Xe đưa đón / Bữa ăn theo lịch trình" onOpen={() => openContentEditor({ title: 'Dịch vụ đã bao gồm', hint: 'Nhập mỗi dịch vụ trên một dòng.', placeholder: 'Xe đưa đón\nBữa ăn theo lịch trình', value: arrayToLines(tourForm.included), onSave: (value) => updateListField('included', value, setTourForm) })} />
+                      <CompactLongTextField label="Chưa bao gồm" hint="Mỗi dòng một mục" value={arrayToLines(tourForm.excluded)} placeholder="Chi phí cá nhân / Đồ uống" onOpen={() => openContentEditor({ title: 'Dịch vụ chưa bao gồm', hint: 'Nhập mỗi chi phí hoặc dịch vụ trên một dòng.', placeholder: 'Chi phí cá nhân\nĐồ uống', value: arrayToLines(tourForm.excluded), onSave: (value) => updateListField('excluded', value, setTourForm) })} />
                     </div>
                   </section>
 
@@ -1377,7 +1458,7 @@ export function AdminPage() {
                       <div className={styles.repeatableList}>{(tourForm.itinerary || []).map((day, index) => <div className={styles.repeatableCard} key={`${day.day}-${index}`}>
                         <div className={styles.repeatableHeader}><strong>{day.day || `Ngày ${index + 1}`}</strong><button type="button" className={styles.removeButton} onClick={() => removeItineraryDay(index)}>Xóa</button></div>
                         <div className={styles.inlineFields}><label>Ngày<input value={day.day} placeholder={`Ngày ${index + 1}`} onChange={(event) => updateItineraryDay(index, { day: event.target.value })} /></label><label>Bữa ăn<input value={day.meal || ''} placeholder="Ví dụ: Sáng, trưa" onChange={(event) => updateItineraryDay(index, { meal: event.target.value })} /></label></div>
-                        <label className={styles.fullField}>Nội dung trong ngày <small>Mỗi dòng một hoạt động</small><textarea rows={3} value={arrayToLines(day.content)} onChange={(event) => updateItineraryDay(index, { content: linesToArray(event.target.value) })} /></label>
+                        <CompactLongTextField label="Nội dung trong ngày" hint="Mỗi dòng một hoạt động" value={arrayToLines(day.content)} placeholder="Nhập các hoạt động trong ngày" onOpen={() => openContentEditor({ title: `Nội dung ${day.day || `ngày ${index + 1}`}`, hint: 'Nhập mỗi hoạt động trên một dòng.', placeholder: 'Đón khách tại điểm hẹn\nTham quan địa điểm...', value: arrayToLines(day.content), onSave: (value) => updateItineraryDay(index, { content: linesToArray(value) }) })} />
                       </div>)}</div>
                     </div>
                   </section>
@@ -1391,7 +1472,7 @@ export function AdminPage() {
                     <div className={styles.sectionContent}>
                       <label className={styles.fullField}><span>Mùa/nhóm tour</span><input value={tourForm.season || ''} onChange={(event) => setTourForm({ ...tourForm, season: event.target.value })} /></label>
                       <label className={styles.fullField}>Hãng hàng không<input value={tourForm.transport?.airline || ''} placeholder="Nếu có" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), airline: event.target.value } })} /></label>
-                      <label className={styles.fullField}>Phương tiện <small>Mỗi dòng một phương tiện</small><textarea rows={3} value={arrayToLines(tourForm.transport?.vehicle)} placeholder="Xe du lịch / Máy bay" onChange={(event) => setTourForm({ ...tourForm, transport: { ...(tourForm.transport || {}), vehicle: linesToArray(event.target.value) } })} /></label>
+                      <CompactLongTextField label="Phương tiện" hint="Mỗi dòng một phương tiện" value={arrayToLines(tourForm.transport?.vehicle)} placeholder="Xe du lịch / Máy bay" onOpen={() => openContentEditor({ title: 'Phương tiện di chuyển', hint: 'Nhập mỗi phương tiện trên một dòng.', placeholder: 'Xe du lịch\nMáy bay', value: arrayToLines(tourForm.transport?.vehicle), onSave: (value) => setTourForm((current) => ({ ...current, transport: { ...(current.transport || {}), vehicle: linesToArray(value) } })) })} />
                     </div>
                   </section>
                   
@@ -1405,7 +1486,19 @@ export function AdminPage() {
                       </div>
                     </div>
                     <div className={styles.sectionContentFull}>
-                      <div className={styles.repeatableList}>{(tourForm.schedule || []).map((row, index) => <div className={styles.scheduleRow} key={`${row.date}-${index}`}><input aria-label={`Ngày khởi hành ${index + 1}`} type="date" min={getTomorrowIsoDate()} required value={row.date} onChange={(event) => updateScheduleRow(index, { date: event.target.value })} /><div className={styles.priceInputWrap}><input aria-label={`Giá lịch ${index + 1}`} type="text" placeholder="Giá" value={row.price ? row.price.toLocaleString('en-US') : ''} onChange={(event) => { const val = event.target.value.replace(/\D/g, ''); updateScheduleRow(index, { price: val ? Number(val) : 0 }) }} /><span>₫</span></div><label className={styles.checkboxLabel}><input type="checkbox" checked={row.available} onChange={(event) => updateScheduleRow(index, { available: event.target.checked })} /> Còn chỗ</label><button type="button" className={styles.removeButton} onClick={() => removeScheduleRow(index)}>Xóa</button></div>)}</div>
+                      <div className={styles.repeatableList}>{(tourForm.schedule || []).map((row, index) => {
+                        const bookedCount = row.booked_count || 0
+                        const remainingCount = row.capacity ? Math.max(0, row.capacity - bookedCount) : null
+                        const status = row.status || (row.available ? 'open' : 'closed')
+                        return <div className={styles.scheduleRow} key={`${row.date}-${index}`}>
+                          <input aria-label={`Ngày khởi hành ${index + 1}`} type="date" min={getTomorrowIsoDate()} required value={row.date} onChange={(event) => updateScheduleRow(index, { date: event.target.value })} />
+                          <div className={styles.priceInputWrap}><input aria-label={`Giá lịch ${index + 1}`} type="text" placeholder="Giá" value={row.price ? row.price.toLocaleString('en-US') : ''} onChange={(event) => { const val = event.target.value.replace(/\D/g, ''); updateScheduleRow(index, { price: val ? Number(val) : 0 }) }} /><span>₫</span></div>
+                          <label className={styles.scheduleCapacityField}>Tổng chỗ<input aria-label={`Tổng số chỗ lịch ${index + 1}`} type="number" min={Math.max(1, bookedCount)} placeholder="Không giới hạn" value={row.capacity ?? ''} onChange={(event) => updateScheduleRow(index, { capacity: event.target.value ? Number(event.target.value) : null })} /></label>
+                          <label className={styles.scheduleStatusField}>Trạng thái<select value={status} onChange={(event) => { const nextStatus = event.target.value as NonNullable<typeof row.status>; updateScheduleRow(index, { status: nextStatus, available: nextStatus === 'open' }) }}>{scheduleStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                          <div className={styles.scheduleSeatSummary}><strong>{bookedCount} đã đặt</strong><span>{remainingCount === null ? 'Không giới hạn chỗ' : `${remainingCount} chỗ còn lại`}</span></div>
+                          <button type="button" className={styles.removeButton} disabled={bookedCount > 0} title={bookedCount > 0 ? 'Lịch đã có khách giữ chỗ nên không thể xóa' : 'Xóa lịch'} onClick={() => removeScheduleRow(index)}>Xóa</button>
+                        </div>
+                      })}</div>
                     </div>
                   </section>
                 </div>
@@ -1413,6 +1506,22 @@ export function AdminPage() {
               </form>
             </section>
           )}
+
+          {contentEditor && <div className={`${styles.modalBackdrop} ${styles.contentEditorBackdrop}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setContentEditor(null) }}>
+            <section className={styles.contentEditorModal} role="dialog" aria-modal="true" aria-labelledby="content-editor-title">
+              <div className={styles.contentEditorHeader}>
+                <div><span className={styles.modalEyebrow}>SOẠN NỘI DUNG</span><h2 id="content-editor-title">{contentEditor.title}</h2><p>{contentEditor.hint}</p></div>
+                <button type="button" className={styles.modalClose} onClick={() => setContentEditor(null)} aria-label="Đóng"><span aria-hidden="true">&#215;</span></button>
+              </div>
+              <div className={styles.contentEditorBody}>
+                <textarea autoFocus value={contentEditorDraft} placeholder={contentEditor.placeholder} onChange={(event) => setContentEditorDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveContentEditor() }} />
+              </div>
+              <div className={styles.contentEditorFooter}>
+                <span>{linesToArray(contentEditorDraft).length} dòng · {contentEditorDraft.length} ký tự</span>
+                <div><button type="button" className={styles.secondaryButton} onClick={() => setContentEditor(null)}>Hủy</button><button type="button" className={styles.primaryButton} onClick={saveContentEditor}>Lưu nội dung</button></div>
+              </div>
+            </section>
+          </div>}
         </main>
     </div>
 

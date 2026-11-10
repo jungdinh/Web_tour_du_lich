@@ -127,7 +127,7 @@ export function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="password">Mật khẩu</label>
               <div className={styles.passwordInputWrap}>
-                <input id="password" type={showPassword ? 'text' : 'text'} className={!showPassword ? styles.fakePassword : ''} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} onFocus={() => setIsPasswordFocused(true)} onBlur={() => setIsPasswordFocused(false)} minLength={12} maxLength={24} aria-describedby="password-requirements" required />
+                <input id="password" type={showPassword ? 'text' : 'password'} className={!showPassword ? styles.fakePassword : ''} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} onFocus={() => setIsPasswordFocused(true)} onBlur={() => setIsPasswordFocused(false)} minLength={12} maxLength={24} aria-describedby="password-requirements" required />
                 <button type="button" className={styles.passwordToggle} onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showPassword} disabled={loading}>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     {showPassword ? (
@@ -155,7 +155,7 @@ export function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="confirmPassword">Xác nhận mật khẩu</label>
               <div className={styles.passwordInputWrap}>
-                <input id="confirmPassword" type={showConfirmPassword ? 'text' : 'text'} className={!showConfirmPassword ? styles.fakePassword : ''} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} maxLength={24} required />
+                <input id="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} className={!showConfirmPassword ? styles.fakePassword : ''} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} maxLength={24} required />
                 <button type="button" className={styles.passwordToggle} onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'} aria-pressed={showConfirmPassword} disabled={loading}>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     {showConfirmPassword ? (

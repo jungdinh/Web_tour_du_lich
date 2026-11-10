@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import axios from 'axios'
 import { Link, useSearchParams } from 'react-router-dom'
 import { chatApi, actionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -276,8 +277,11 @@ export function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [slowResponse, setSlowResponse] = useState(false)
+  const [chatError, setChatError] = useState<{ message: string; prompt: string } | null>(null)
   const [sessionId, setSessionId] = useState<number | null>(null)
   const didHydrateRef = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -293,8 +297,9 @@ export function ChatPage() {
   useEffect(() => {
     if (!token || !user?.id || didHydrateRef.current) return
 
-    const storageKey = `tourai-chat:${user.id}`
-    const savedChat = sessionStorage.getItem(storageKey)
+    const storageKey = `vivu-chat:${user.id}`
+    const legacyStorageKey = `tourai-chat:${user.id}`
+    const savedChat = sessionStorage.getItem(storageKey) || sessionStorage.getItem(legacyStorageKey)
     if (!savedChat) {
       didHydrateRef.current = true
       return
@@ -308,6 +313,7 @@ export function ChatPage() {
       if (typeof parsed.sessionId === 'number') {
         setSessionId(parsed.sessionId)
       }
+      sessionStorage.removeItem(legacyStorageKey)
     } catch (error) {
       console.error('Failed to restore chat session:', error)
       sessionStorage.removeItem(storageKey)
@@ -319,7 +325,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!token || !user?.id || !didHydrateRef.current) return
 
-    const storageKey = `tourai-chat:${user.id}`
+    const storageKey = `vivu-chat:${user.id}`
     sessionStorage.setItem(
       storageKey,
       JSON.stringify({
@@ -338,10 +344,14 @@ export function ChatPage() {
   }, [input])
 
   const handleNewChat = () => {
+    abortControllerRef.current?.abort()
     setMessages([])
     setSessionId(null)
     setInput('')
+    setChatError(null)
+    setSlowResponse(false)
     if (user?.id) {
+      sessionStorage.removeItem(`vivu-chat:${user.id}`)
       sessionStorage.removeItem(`tourai-chat:${user.id}`)
     }
     if (textareaRef.current) {
@@ -353,39 +363,31 @@ export function ChatPage() {
   const initialQuery = searchParams.get('q')
   const initialQueryHandledRef = useRef(false)
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = async (textToSend?: string, appendUserMessage = true) => {
     const text = (textToSend ?? input).trim()
     if (!text || loading) return
 
     setLoading(true)
+    setSlowResponse(false)
+    setChatError(null)
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    const slowTimer = window.setTimeout(() => setSlowResponse(true), 8000)
     if (!textToSend) {
       setInput('')
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
-      }
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
 
-    const tempUserMsgId = Date.now()
-    const nowIso = new Date().toISOString()
-
-    // Add optimistic user message
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: tempUserMsgId,
-        role: 'user',
-        content: text,
-        created_at: nowIso,
-      },
-    ])
+    if (appendUserMessage) {
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() },
+      ])
+    }
 
     try {
-      const response = await chatApi.sendMessage(text, sessionId || undefined)
-
-      if (response.session_id && !sessionId) {
-        setSessionId(response.session_id)
-      }
-
+      const response = await chatApi.sendMessage(text, sessionId || undefined, controller.signal)
+      if (response.session_id && !sessionId) setSessionId(response.session_id)
       setMessages((prev) => [
         ...prev,
         {
@@ -400,18 +402,31 @@ export function ChatPage() {
       ])
     } catch (error) {
       console.error('Chat error:', error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 2,
-          role: 'assistant',
-          content: 'Xin lỗi, hệ thống đang gặp gián đoạn kết nối tới AI. Bạn vui lòng thử lại sau giây lát hoặc bấm "+ Cuộc trò chuyện mới" nhé!',
-          created_at: new Date().toISOString(),
-        },
-      ])
+      if (axios.isCancel(error) || (axios.isAxiosError(error) && error.code === 'ERR_CANCELED')) {
+        setChatError({ message: 'Y\u00eau c\u1ea7u \u0111\u00e3 \u0111\u01b0\u1ee3c d\u1eebng. B\u1ea1n c\u00f3 th\u1ec3 th\u1eed l\u1ea1i khi s\u1eb5n s\u00e0ng.', prompt: text })
+      } else if (axios.isAxiosError(error)) {
+        const payload = error.response?.data as { error?: string; fallback?: string } | undefined
+        const message = [payload?.error, payload?.fallback].filter(Boolean).join(' ')
+          || (error.code === 'ECONNABORTED'
+            ? 'Vivu AI ph\u1ea3n h\u1ed3i qu\u00e1 l\u00e2u. Vui l\u00f2ng th\u1eed l\u1ea1i.'
+            : 'Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i t\u1edbi Vivu AI. Vui l\u00f2ng ki\u1ec3m tra m\u1ea1ng v\u00e0 th\u1eed l\u1ea1i.')
+        setChatError({ message, prompt: text })
+      } else {
+        setChatError({ message: 'Vivu AI \u0111ang g\u1eb7p s\u1ef1 c\u1ed1 kh\u00f4ng mong mu\u1ed1n. Vui l\u00f2ng th\u1eed l\u1ea1i.', prompt: text })
+      }
     } finally {
+      window.clearTimeout(slowTimer)
+      abortControllerRef.current = null
+      setSlowResponse(false)
       setLoading(false)
     }
+  }
+
+  const handleStop = () => abortControllerRef.current?.abort()
+
+  const handleRetry = () => {
+    if (!chatError || loading) return
+    void handleSend(chatError.prompt, false)
   }
 
   useEffect(() => {
@@ -709,10 +724,22 @@ export function ChatPage() {
                               <span className={styles.waveDot} />
                               <span className={styles.waveDot} />
                             </div>
-                            <span className={styles.loadingText}>Vivu đang phân tích sở thích & chọn tour tối ưu...</span>
+                            <span className={styles.loadingText}>
+                              {slowResponse
+                                ? 'Vivu AI \u0111ang x\u1eed l\u00fd l\u00e2u h\u01a1n b\u00ecnh th\u01b0\u1eddng...'
+                                : 'Vivu \u0111ang ph\u00e2n t\u00edch s\u1edf th\u00edch v\u00e0 ch\u1ecdn tour ph\u00f9 h\u1ee3p...'}
+                            </span>
+                            <button type="button" className={styles.stopButton} onClick={handleStop}>{'D\u1eebng'}</button>
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {chatError && !loading && (
+                    <div className={styles.chatErrorCard} role="alert">
+                      <div><strong>{'Ch\u01b0a th\u1ec3 nh\u1eadn ph\u1ea3n h\u1ed3i AI'}</strong><span>{chatError.message}</span></div>
+                      <button type="button" onClick={handleRetry}>{'Th\u1eed l\u1ea1i'}</button>
                     </div>
                   )}
 

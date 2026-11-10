@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { bookingApi, tourApi, favoriteApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ImageWithFallback } from '@/components/ImageWithFallback'
 import { TourReviews } from '@/components/TourReviews'
 import { TourCard, TourCardSkeleton } from '@/components/TourCard'
-import type { Booking, Tour, Review } from '@/types'
+import type { Booking, Tour, Review, ScheduleRow } from '@/types'
 import { formatRatingToFive } from '@/utils/rating'
 import { Dropdown } from '@/components/Dropdown'
 import styles from './TourDetail.module.css'
@@ -36,6 +36,7 @@ import {
   Headphones,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   ChevronRight,
   Gift,
   CheckSquare,
@@ -51,6 +52,27 @@ const DEPARTURE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /hu\u1ebf/i, label: 'Huế' },
   { pattern: /\u0111\u00e0\s*l\u1ea1t/i, label: 'Đà Lạt' },
 ]
+
+const getScheduleStatusLabel = (row: ScheduleRow) => {
+  if (row.status === 'paused') return 'Tạm ngừng nhận khách'
+  if (row.status === 'closed') return 'Đã đóng lịch'
+  if (row.status === 'cancelled') return 'Đã hủy lịch'
+  if (!row.available) return 'Hết chỗ'
+  if (row.remaining_count !== null && row.remaining_count !== undefined) {
+    return `Còn ${row.remaining_count} chỗ`
+  }
+  return 'Còn chỗ'
+}
+
+const normalizeVietnamesePhone = (value: string) => value.replace(/[\s().-]/g, '')
+const vietnameseMobilePattern = /^(?:\+84|0)(?:3|5|7|8|9)\d{8}$/
+
+const formatCountdown = (seconds: number) => {
+  const safeSeconds = Math.max(0, seconds)
+  const minutes = Math.floor(safeSeconds / 60)
+  const remainingSeconds = safeSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+}
 
 const inferDeparture = (tour: Tour) => {
   const firstDay = tour.itinerary?.[0]
@@ -82,6 +104,9 @@ export function TourDetailPage() {
   const [reviewTotal, setReviewTotal] = useState(0)
   const [similarTours, setSimilarTours] = useState<Tour[]>([])
   const [similarToursLoading, setSimilarToursLoading] = useState(true)
+  const [canScrollSimilarLeft, setCanScrollSimilarLeft] = useState(false)
+  const [canScrollSimilarRight, setCanScrollSimilarRight] = useState(false)
+  const similarToursRailRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [savingFavorite, setSavingFavorite] = useState(false)
@@ -93,6 +118,7 @@ export function TourDetailPage() {
   const [bookingLoading, setBookingLoading] = useState(false)
   const [bookingError, setBookingError] = useState('')
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null)
+  const [paymentSecondsLeft, setPaymentSecondsLeft] = useState(0)
   const [bookingForm, setBookingForm] = useState({
     departure_date: '',
     guest_count: 1,
@@ -101,6 +127,41 @@ export function TourDetailPage() {
     contact_phone: '',
     note: '',
   })
+
+  const updateSimilarTourNavigation = useCallback(() => {
+    const rail = similarToursRailRef.current
+    if (!rail) return
+
+    const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth)
+    setCanScrollSimilarLeft(rail.scrollLeft > 4)
+    setCanScrollSimilarRight(rail.scrollLeft < maxScrollLeft - 4)
+  }, [])
+
+  const scrollSimilarTours = (direction: -1 | 1) => {
+    const rail = similarToursRailRef.current
+    if (!rail) return
+
+    const firstCard = rail.querySelector<HTMLElement>(`.${styles.similarTourItem}`)
+    const railStyles = window.getComputedStyle(rail)
+    const gap = Number.parseFloat(railStyles.columnGap || railStyles.gap) || 16
+    const scrollDistance = firstCard ? firstCard.offsetWidth + gap : rail.clientWidth * 0.85
+
+    rail.scrollBy({ left: direction * scrollDistance, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const rail = similarToursRailRef.current
+    if (!rail) return
+
+    const animationFrame = window.requestAnimationFrame(updateSimilarTourNavigation)
+    const resizeObserver = new ResizeObserver(updateSimilarTourNavigation)
+    resizeObserver.observe(rail)
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      resizeObserver.disconnect()
+    }
+  }, [similarTours.length, similarToursLoading, updateSimilarTourNavigation])
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
@@ -241,13 +302,14 @@ export function TourDetailPage() {
       return
     }
     const futureSchedule = getFutureScheduleRows(tour?.schedule)
-    if (!futureSchedule.length) {
+    const availableSchedule = futureSchedule.filter((row) => row.available)
+    if (!availableSchedule.length) {
       setActiveTab('schedule')
       return
     }
     setBookingError('')
     setCreatedBooking(null)
-    const matchedDate = futureSchedule.some((row) => row.date === departureDate) ? departureDate : (futureSchedule[0]?.date || '')
+    const matchedDate = availableSchedule.some((row) => row.date === departureDate) ? departureDate : (availableSchedule[0]?.date || '')
     setBookingForm((prev) => ({
       ...prev,
       departure_date: matchedDate,
@@ -270,10 +332,21 @@ export function TourDetailPage() {
       setBookingError('Ngày khởi hành này hiện đã hết chỗ. Vui lòng chọn ngày khác.')
       return
     }
+    if (selectedSchedule.remaining_count !== null
+      && selectedSchedule.remaining_count !== undefined
+      && bookingForm.guest_count > selectedSchedule.remaining_count) {
+      setBookingError(`Ngày khởi hành này chỉ còn ${selectedSchedule.remaining_count} chỗ.`)
+      return
+    }
+    const normalizedPhone = normalizeVietnamesePhone(bookingForm.contact_phone)
+    if (!vietnameseMobilePattern.test(normalizedPhone)) {
+      setBookingError('S\u1ed1 \u0111i\u1ec7n ch\u01b0a \u0111\u00fang \u0111\u1ecbnh d\u1ea1ng. V\u00ed d\u1ee5: 0912345678 ho\u1eb7c +84912345678.')
+      return
+    }
     setBookingLoading(true)
     setBookingError('')
     try {
-      const booking = await bookingApi.create({ tour_id: tour.id, ...bookingForm })
+      const booking = await bookingApi.create({ tour_id: tour.id, ...bookingForm, contact_phone: normalizedPhone })
       setCreatedBooking(booking)
     } catch (error: any) {
       setBookingError(error?.response?.data?.error || 'Không thể tạo booking. Vui lòng thử lại.')
@@ -306,6 +379,19 @@ export function TourDetailPage() {
   const closeBooking = () => {
     if (!bookingLoading) setBookingOpen(false)
   }
+
+  useEffect(() => {
+    if (!createdBooking?.expires_at || createdBooking.payment_status !== 'pending') {
+      setPaymentSecondsLeft(0)
+      return
+    }
+    const updateCountdown = () => {
+      setPaymentSecondsLeft(Math.max(0, Math.ceil((new Date(createdBooking.expires_at).getTime() - Date.now()) / 1000)))
+    }
+    updateCountdown()
+    const timer = window.setInterval(updateCountdown, 1000)
+    return () => window.clearInterval(timer)
+  }, [createdBooking?.expires_at, createdBooking?.payment_status])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -379,6 +465,9 @@ export function TourDetailPage() {
   const durationText = tour.duration_label?.trim() || `${tour.duration || 1} ngày`
   const selectedSchedule = schedule.find((row) => row.date === bookingForm.departure_date)
   const selectedUnitPrice = selectedSchedule?.price && selectedSchedule.price > 0 ? selectedSchedule.price : tour.price
+  const selectedGuestLimit = selectedSchedule?.remaining_count === null || selectedSchedule?.remaining_count === undefined
+    ? 20
+    : Math.max(1, Math.min(20, selectedSchedule.remaining_count))
 
   const toggleItineraryDay = (dayIndex: number) => {
     setExpandedItineraryDays((current) => {
@@ -804,11 +893,11 @@ export function TourDetailPage() {
                           <td>
                             {row.available ? (
                               <span className={styles.statusAvailable}>
-                                <CheckCircle2 size={14} /> Còn chỗ
+                                <CheckCircle2 size={14} /> {getScheduleStatusLabel(row)}
                               </span>
                             ) : (
-                              <span className={styles.statusFull}>
-                                <XCircle size={14} /> Hết chỗ
+                              <span className={row.status === 'paused' ? styles.statusPaused : styles.statusFull}>
+                                <XCircle size={14} /> {getScheduleStatusLabel(row)}
                               </span>
                             )}
                           </td>
@@ -880,7 +969,7 @@ export function TourDetailPage() {
                   value={bookingForm.departure_date}
                   onChange={(val) => setBookingForm((prev) => ({ ...prev, departure_date: val }))}
                   options={[
-                    { value: '', label: 'Chọn ngày khởi hành mong muốn' },
+                    { value: '', label: 'Chọn ngày khởi hành' },
                     ...schedule.map((row) => ({
                       value: row.date,
                       label: `${formatScheduleDate(row.date)} · ${formatPrice(row.price > 0 ? row.price : tour.price)}${row.available ? '' : ' · Hết chỗ'}`,
@@ -914,7 +1003,7 @@ export function TourDetailPage() {
                 onClick={() => openBooking(bookingForm.departure_date)}
               >
                 <Zap size={16} />
-                <span>{schedule.length ? 'Đặt tour ngay' : 'Chưa có ngày khởi hành'}</span>
+                <span>{schedule.length ? 'Đặt tour' : 'Chưa có ngày khởi hành'}</span>
               </button>
 
               <button
@@ -924,7 +1013,7 @@ export function TourDetailPage() {
                 onClick={handleToggleFavorite}
               >
                 <Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />
-                <span>{savingFavorite ? 'Đang lưu...' : isFavorite ? 'Đã lưu yêu thích' : 'Lưu tour này'}</span>
+                <span>{savingFavorite ? 'Đang lưu...' : isFavorite ? 'Đã lưu yêu thích' : 'Lưu tour'}</span>
               </button>
             </div>
 
@@ -960,22 +1049,44 @@ export function TourDetailPage() {
             </Link>
           </div>
 
-          <div
-            className={styles.similarToursRail}
-            aria-busy={similarToursLoading}
-            aria-label="Danh sách tour tương tự"
-          >
-            {similarToursLoading
-              ? Array.from({ length: 4 }, (_, index) => (
+          <div className={styles.similarToursRailViewport}>
+            <button
+              type="button"
+              className={`${styles.similarToursNavBtn} ${styles.similarToursNavPrev}`}
+              onClick={() => scrollSimilarTours(-1)}
+              disabled={similarToursLoading || !canScrollSimilarLeft}
+              aria-label="Xem tour phia truoc"
+            >
+              <ChevronLeft size={21} />
+            </button>
+            <div
+              ref={similarToursRailRef}
+              className={styles.similarToursRail}
+              aria-busy={similarToursLoading}
+              onScroll={updateSimilarTourNavigation}
+              aria-label="Danh sách tour tương tự"
+            >
+              {similarToursLoading
+                ? Array.from({ length: 4 }, (_, index) => (
                   <div className={styles.similarTourItem} key={index}>
                     <TourCardSkeleton />
                   </div>
                 ))
-              : similarTours.map((similarTour) => (
+                : similarTours.map((similarTour) => (
                   <div className={styles.similarTourItem} key={similarTour.id}>
                     <TourCard tour={similarTour} />
                   </div>
                 ))}
+            </div>
+            <button
+              type="button"
+              className={`${styles.similarToursNavBtn} ${styles.similarToursNavNext}`}
+              onClick={() => scrollSimilarTours(1)}
+              disabled={similarToursLoading || !canScrollSimilarRight}
+              aria-label="Xem tour tiep theo"
+            >
+              <ChevronRight size={21} />
+            </button>
           </div>
         </section>
       )}
@@ -1000,11 +1111,17 @@ export function TourDetailPage() {
               <div className={styles.paymentPanel}>
                 <div className={createdBooking.payment_status === 'paid' ? styles.paymentSuccess : (['expired', 'cancelled'].includes(createdBooking.status) || createdBooking.payment_status === 'failed') ? styles.paymentError : styles.paymentPending}>
                   {createdBooking.payment_status === 'paid' ? 'Thanh toán đã được xác nhận.' :
-                   createdBooking.status === 'expired' ? 'Đơn hàng đã hết hạn thanh toán.' :
-                   createdBooking.status === 'cancelled' ? 'Đơn hàng đã bị huỷ.' :
-                   createdBooking.payment_status === 'failed' ? 'Thanh toán thất bại.' :
-                   'Đơn đang chờ thanh toán'}
+                    createdBooking.status === 'expired' ? 'Đơn hàng đã hết hạn thanh toán.' :
+                      createdBooking.status === 'cancelled' ? 'Đơn hàng đã bị huỷ.' :
+                        createdBooking.payment_status === 'failed' ? 'Thanh toán thất bại.' :
+                          'Đơn đang chờ thanh toán'}
                 </div>
+                {createdBooking.payment_status === 'pending' && createdBooking.status === 'pending_payment' && (
+                  <div className={styles.paymentCountdown} role="status">
+                    <span>{'Th\u1eddi gian gi\u1eef ch\u1ed7 c\u00f2n l\u1ea1i'}</span>
+                    <strong>{formatCountdown(paymentSecondsLeft)}</strong>
+                  </div>
+                )}
                 <p className={styles.paymentTourName}>{createdBooking.tour_name}</p>
                 {createdBooking.checkout ? (
                   <div className={styles.paymentGatewayBox}>
@@ -1064,21 +1181,23 @@ export function TourDetailPage() {
                   <div className={styles.paymentQrMissing}>Admin chưa cấu hình tài khoản ngân hàng SePay.</div>
                 )}
                 <p className={styles.paymentHint}>{createdBooking.checkout ? 'SePay sẽ hiển thị mã QR và xử lý giao dịch. Trạng thái đơn chỉ được cập nhật sau khi backend nhận IPN hợp lệ.' : 'Hệ thống sẽ tự động xác nhận ngay khi nhận được thanh toán. Không cần tải lại trang.'}</p>
+                <div className={styles.bookingPolicy}><strong>{'Ch\u00ednh s\u00e1ch h\u1ee7y/ho\u00e0n ti\u1ec1n'}</strong><span>{'\u0110\u01a1n ch\u01b0a thanh to\u00e1n c\u00f3 th\u1ec3 h\u1ee7y tr\u01b0\u1edbc khi h\u1ebft th\u1eddi gian gi\u1eef ch\u1ed7. V\u1edbi \u0111\u01a1n \u0111\u00e3 thanh to\u00e1n, Vivu ti\u1ebfp nh\u1eadn y\u00eau c\u1ea7u qua b\u1ed9 ph\u1eadn h\u1ed7 tr\u1ee3 v\u00e0 x\u1eed l\u00fd theo \u0111i\u1ec1u ki\u1ec7n ri\u00eang c\u1ee7a t\u1eebng tour; h\u1ec7 th\u1ed1ng kh\u00f4ng t\u1ef1 \u0111\u1ed9ng cam k\u1ebft ho\u00e0n ti\u1ec1n.'}</span></div>
                 <div className={styles.paymentActions}><button type="button" className={styles.secondaryBookingButton} onClick={closeBooking}>Đóng</button></div>
               </div>
             ) : (
               <form className={styles.bookingForm} onSubmit={submitBooking}>
                 <div className={styles.bookingTourSummary}><strong>{tour.name}</strong><span>{formatPrice(selectedUnitPrice)} / khách · {durationText}</span></div>
                 <div className={styles.bookingFormGrid}>
-                  <label>Ngày khởi hành<Dropdown className={styles.dateDropdown} value={bookingForm.departure_date} onChange={(val) => setBookingForm({ ...bookingForm, departure_date: val })} options={[{value: '', label: 'Chọn ngày khởi hành'}, ...schedule.map(row => ({value: row.date, label: `${formatScheduleDate(row.date)} · ${formatPrice(row.price > 0 ? row.price : tour.price)}${row.available ? '' : ' · Hết chỗ'}`, disabled: !row.available}))]} /></label>
-                  <label>Số khách<input type="number" min="1" max="20" required value={bookingForm.guest_count} onChange={(event) => setBookingForm({ ...bookingForm, guest_count: Number(event.target.value) })} /></label>
+                  <label>Ngày khởi hành<Dropdown className={styles.dateDropdown} value={bookingForm.departure_date} onChange={(val) => { const nextSchedule = schedule.find((row) => row.date === val); const nextLimit = nextSchedule?.remaining_count === null || nextSchedule?.remaining_count === undefined ? 20 : Math.max(1, Math.min(20, nextSchedule.remaining_count)); setBookingForm({ ...bookingForm, departure_date: val, guest_count: Math.min(bookingForm.guest_count, nextLimit) }) }} options={[{ value: '', label: 'Chọn ngày khởi hành' }, ...schedule.map(row => ({ value: row.date, label: `${formatScheduleDate(row.date)} · ${formatPrice(row.price > 0 ? row.price : tour.price)} · ${getScheduleStatusLabel(row)}`, disabled: !row.available }))]} /></label>
+                  <label>Số khách<input type="number" min="1" max={selectedGuestLimit} required value={bookingForm.guest_count} onChange={(event) => setBookingForm({ ...bookingForm, guest_count: Number(event.target.value) })} />{selectedSchedule?.remaining_count !== null && selectedSchedule?.remaining_count !== undefined ? <small>Còn tối đa {selectedSchedule.remaining_count} chỗ</small> : null}</label>
                   <label>Họ và tên<input required maxLength={255} value={bookingForm.contact_name} onChange={(event) => setBookingForm({ ...bookingForm, contact_name: event.target.value })} /></label>
                   <label>Email<input type="email" required maxLength={255} value={bookingForm.contact_email} onChange={(event) => setBookingForm({ ...bookingForm, contact_email: event.target.value })} /></label>
-                  <label>Số điện thoại<input required maxLength={30} value={bookingForm.contact_phone} onChange={(event) => setBookingForm({ ...bookingForm, contact_phone: event.target.value })} /></label>
+                  <label>Số điện thoại<input type="tel" inputMode="tel" autoComplete="tel" required maxLength={16} pattern="(?:\+84|0)(?:3|5|7|8|9)[0-9]{8}" value={bookingForm.contact_phone} onChange={(event) => setBookingForm({ ...bookingForm, contact_phone: event.target.value })} onBlur={() => setBookingForm((current) => ({ ...current, contact_phone: normalizeVietnamesePhone(current.contact_phone) }))} /></label>
                   <label className={styles.bookingFullField}>Ghi chú thêm<textarea maxLength={1000} rows={3} value={bookingForm.note} onChange={(event) => setBookingForm({ ...bookingForm, note: event.target.value })} /></label>
                 </div>
                 {bookingError && <p className={styles.bookingError}>{bookingError}</p>}
-                 <div className={styles.bookingFormFooter}><span>Tổng dự kiến: <strong>{formatPrice(selectedUnitPrice * bookingForm.guest_count)}</strong></span><button type="submit" className={styles.bookNowBtn} disabled={bookingLoading || schedule.length === 0}>{bookingLoading ? 'Đang tạo booking...' : 'Tiếp tục thanh toán QR'}</button></div>
+                <div className={styles.bookingPolicy}><strong>{'Ch\u00ednh s\u00e1ch h\u1ee7y/ho\u00e0n ti\u1ec1n'}</strong><span>{'B\u1ea1n c\u00f3 th\u1ec3 h\u1ee7y \u0111\u01a1n ch\u01b0a thanh to\u00e1n tr\u01b0\u1edbc khi h\u1ebft h\u1ea1n gi\u1eef ch\u1ed7. Y\u00eau c\u1ea7u h\u1ee7y ho\u1eb7c ho\u00e0n ti\u1ec1n sau thanh to\u00e1n s\u1ebd \u0111\u01b0\u1ee3c Vivu ki\u1ec3m tra theo \u0111i\u1ec1u ki\u1ec7n c\u1ee7a tour v\u00e0 x\u00e1c nh\u1eadn qua b\u1ed9 ph\u1eadn h\u1ed7 tr\u1ee3.'}</span></div>
+                <div className={styles.bookingFormFooter}><span>Tổng dự kiến: <strong>{formatPrice(selectedUnitPrice * bookingForm.guest_count)}</strong></span><button type="submit" className={styles.bookNowBtn} disabled={bookingLoading || !schedule.some((row) => row.available)}>{bookingLoading ? 'Đang tạo booking...' : 'Tiếp tục thanh toán QR'}</button></div>
               </form>
             )}
           </section>
